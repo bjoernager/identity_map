@@ -3,6 +3,11 @@
 This is the changelog of [identity_map](https://crates.io/crates/identity_map/).
 See `README.md` for more information.
 
+## 0.0.1
+
+* Add license file
+* Add crate description
+
 ## 0.0.0
 
 * Add gitignore
