@@ -26,124 +26,154 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+use crate::RawIdentityMap;
+
+use core::fmt::{self, Debug, Formatter};
 use alloc::alloc::{Allocator, Global};
-use core::alloc::Layout;
 use core::iter::FusedIterator;
-use core::ptr::{self, drop_in_place, NonNull};
-use core::slice;
+use core::ptr::{self, drop_in_place};
 
 /// Owning identity map iterator.
 #[must_use]
-#[derive(Clone, Debug)]
+#[derive(Clone, Default)]
 pub struct IntoIter<K, V, A: Allocator = Global> {
-	alloc: A,
-
-	cap: usize,
 	pos: usize,
-	len: usize,
-	ptr: NonNull<(K, V)>,
+	raw: RawIdentityMap<K, V, A>,
 }
 
 impl<K, V, A: Allocator> IntoIter<K, V, A> {
+	/// Constructs a new, owning identity map iterator.
+	///
+	/// # Safety
+	///
+	/// The provided, raw identity map must be initialised.
 	#[inline(always)]
-	pub(super) unsafe fn new(
-			ptr:   *mut (K, V),
-			cap:   usize,
-			len:   usize,
-			alloc: A,
-	) -> Self {
-		let ptr = unsafe { NonNull::new_unchecked(ptr) };
-
+	pub(super) unsafe fn new(raw: RawIdentityMap<K, V, A>) -> Self {
 		Self {
-			alloc,
-
-			cap,
 			pos: Default::default(),
-			len,
-			ptr,
+			raw,
 		}
+	}
+
+	/// Gets a pointer to the first key/value pairs.
+	#[inline(always)]
+	#[must_use]
+	pub fn as_ptr(&self) -> *const (K, V) {
+		unsafe { self.raw.as_ptr().add(self.pos) }
+	}
+
+	/// Gets a mutable pointer to the first key/value pairs.
+	#[inline(always)]
+	#[must_use]
+	pub fn as_mut_ptr(&mut self) -> *mut (K, V) {
+		unsafe { self.raw.as_mut_ptr().add(self.pos) }
+	}
+
+	/// Gets a slice of the key/value pairs.
+	#[inline(always)]
+	#[must_use]
+	pub fn as_slice(&self) -> &[(K, V)] {
+		unsafe { &*self.raw.as_slice() }
+	}
+
+	/// Gets a mutable slice of the key/value pairs.
+	#[inline(always)]
+	#[must_use]
+	pub fn as_mut_slice(&mut self) -> &mut [(K, V)] {
+		unsafe { &mut *self.raw.as_mut_slice() }
 	}
 }
 
-impl<K, V, A: Allocator + Default> Default for IntoIter<K, V, A> {
+impl<K, V, A: Allocator> AsMut<[(K, V)]> for IntoIter<K, V, A> {
 	#[inline(always)]
-	fn default() -> Self {
-		Self {
-			alloc: Default::default(),
+	fn as_mut(&mut self) -> &mut [(K, V)] {
+		self.as_mut_slice()
+	}
+}
 
-			cap: Default::default(),
-			pos: Default::default(),
-			len: Default::default(),
-			ptr: NonNull::dangling(),
-		}
+impl<K, V, A: Allocator> AsRef<[(K, V)]> for IntoIter<K, V, A> {
+	#[inline(always)]
+	fn as_ref(&self) -> &[(K, V)] {
+		self.as_slice()
+	}
+}
+
+impl<K, V, A> Debug for IntoIter<K, V, A>
+where
+	K: Debug,
+	V: Debug,
+	A: Allocator,
+{
+	#[inline(always)]
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+		f
+			.debug_tuple("IterMut")
+			.field(&self.as_slice())
+			.finish()
 	}
 }
 
 impl<K, V, A: Allocator> Drop for IntoIter<K, V, A> {
-	#[inline]
+	#[inline(always)]
 	fn drop(&mut self) {
-		let remaining: *mut [(K, V)] = unsafe {
-			let len = self.len;
+		// Drop all items that are still alive.
 
-			let ptr = self
-				.ptr
-				.as_ptr()
-				.add(self.pos);
-
-			ptr::from_mut(slice::from_raw_parts_mut(ptr, len))
-		};
-
+		let remaining = ptr::from_mut(self.as_mut_slice());
 		unsafe { drop_in_place(remaining) };
-
-		unsafe {
-			let layout = Layout::array::<(K, V)>(self.cap).unwrap();
-
-			let ptr = self.ptr.cast();
-
-			self.alloc.deallocate(ptr, layout);
-		}
 	}
 }
 
 impl<K, V, A: Allocator> Iterator for IntoIter<K, V, A> {
 	type Item = (K, V);
 
+	#[inline]
 	fn next(&mut self) -> Option<Self::Item> {
-		if self.len == 0x0 { return None };
+		let mut len = self.len();
+
+		if len == 0x0 { return None };
 
 		let item = unsafe {
 			let ptr = self
-				.ptr
+				.raw
 				.as_ptr()
-				.cast_const()
 				.add(self.pos);
 
 			ptr.read()
 		};
 
 		self.pos += 0x1;
-		self.len -= 0x1;
+		len      -= 0x1;
+
+		unsafe { self.raw.set_len(len) };
 
 		Some(item)
+	}
+
+	#[inline(always)]
+	fn size_hint(&self) -> (usize, Option<usize>) {
+		let size = self.raw.len();
+		(size, Some(size))
 	}
 }
 
 impl<K, V, A: Allocator> DoubleEndedIterator for IntoIter<K, V, A> {
 	fn next_back(&mut self) -> Option<Self::Item> {
-		if self.len == 0x0 { return None };
+		let mut len = self.len();
+
+		if len == 0x0 { return None };
 
 		let item = unsafe {
 			let ptr = self
-				.ptr
+				.raw
 				.as_ptr()
-				.cast_const()
 				.add(self.pos)
-				.add(self.len);
+				.add(len);
 
 			ptr.read()
 		};
 
-		self.len -= 0x1;
+		len -= 0x1;
+		unsafe { self.raw.set_len(len) };
 
 		Some(item)
 	}

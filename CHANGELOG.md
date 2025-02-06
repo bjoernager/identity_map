@@ -3,6 +3,23 @@
 This is the changelog of [identity_map](https://crates.io/crates/identity_map/).
 See `README.md` for more information.
 
+## 0.1.0
+
+* Implement `Clone` for `IdentityMap` and `IntoIter`
+* Unimplement `Clone` for `IterMut`
+* Add `as_slice` method to `IntoIter`, `Iter`, and `IterMut`
+* Add `as_mut_slice` method to `IntoIter` and `IterMut`
+* Fix `IntoIter` not tracking allocation state
+* Fix `IdentityMap` not properly tracking allocation state
+* Improve commenting
+* Implement `Send` and `Sync` for `IntoIter`
+* Add `as_ptr` and `as_mut_ptr` methods to `IntoIter`, `Iter`, and `IterMut`
+* Add more docs
+* Update lints
+* Properly implement `<{IntoIter, Iter, IterMut} as Iterator>::size_hint`
+* Implement `AsRef<[(K, V)]>` for `IdentityMap`, `IntoIter`, `Iter` and `IterMut`
+* Implement `AsMut<[(K, V)]>` for `IdentityMap`, `IntoIter`, and `IterMut`
+
 ## 0.0.1
 
 * Add license file

@@ -26,99 +26,101 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+use crate::RawIter;
+
+use core::fmt::{self, Debug, Formatter};
 use core::iter::FusedIterator;
 use core::marker::PhantomData;
-use core::ptr::NonNull;
+use core::mem::transmute;
+use core::ptr;
 
 /// Borrowing identity map iterator.
 #[must_use]
-#[derive(Clone, Debug)]
+#[derive(Clone, Default)]
 pub struct Iter<'a, K, V> {
-	pos: usize,
-	len: usize,
-	ptr: NonNull<(K, V)>,
+	raw: RawIter<K, V>,
 
 	_buf: PhantomData<&'a [(K, V)]>,
 }
 
 impl<'a, K, V> Iter<'a, K, V> {
+	/// Constructs a new, borrowing identity map iterator.
 	#[inline(always)]
 	pub(super) fn new(buf: &'a [(K, V)]) -> Self {
-		let len = buf.len();
+		let buf = ptr::from_ref(buf);
 
-		let ptr = unsafe {
-			let ptr = buf.as_ptr().cast_mut();
+		// SAFETY: References are always initialised at
+		// their destination.
+		let raw = unsafe { RawIter::new(buf.cast_mut()) };
 
-			NonNull::new_unchecked(ptr)
-		};
-
-		Self {
-			len,
-			ptr,
-
-			..Default::default()
-		}
+		Self { raw, _buf: PhantomData, }
 	}
-}
 
-impl<K, V> Default for Iter<'_, K, V> {
+	/// Gets a pointer to the first key/value pairs.
 	#[inline(always)]
-	fn default() -> Self {
-		Self {
-			ptr: NonNull::dangling(),
+	#[must_use]
+	pub fn as_ptr(&self) -> *const (K, V) {
+		self.raw.as_ptr()
+	}
 
-			pos: Default::default(),
-			len: Default::default(),
-
-			_buf: Default::default(),
-		}
+	/// Gets a slice of the key/value pairs.
+	#[inline(always)]
+	#[must_use]
+	pub fn as_slice(&self) -> &[(K, V)] {
+		// SAFETY: We do guarantee that elements are ini-
+		// tialised.
+		unsafe { &*self.raw.as_slice() }
 	}
 }
 
-impl<'a, K, V> Iterator for Iter<'a, K, V> {
-	type Item = &'a (K, V);
+impl<K, V> AsRef<[(K, V)]> for Iter<'_, K, V> {
+	#[inline(always)]
+	fn as_ref(&self) -> &[(K, V)] {
+		self.as_slice()
+	}
+}
 
-	fn next(&mut self) -> Option<Self::Item> {
-		if self.len == 0x0 { return None };
-
-		let item = unsafe {
-			let ptr = self
-				.ptr
-				.as_ptr()
-				.cast_const()
-				.add(self.pos);
-
-			&*ptr
-		};
-
-		self.pos += 0x1;
-		self.len -= 0x1;
-
-		Some(item)
+impl<K, V> Debug for Iter<'_, K, V>
+where
+	K: Debug,
+	V: Debug,
+{
+	#[inline(always)]
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+		f
+			.debug_tuple("Iter")
+			.field(&self.as_slice())
+			.finish()
 	}
 }
 
 impl<K, V> DoubleEndedIterator for Iter<'_, K, V> {
+	#[inline(always)]
 	fn next_back(&mut self) -> Option<Self::Item> {
-		if self.len == 0x0 { return None };
-
-		let item = unsafe {
-			let ptr = self
-				.ptr
-				.as_ptr()
-				.cast_const()
-				.add(self.pos)
-				.add(self.len);
-
-			&*ptr
-		};
-
-		self.len -= 0x1;
-
-		Some(item)
+		// SAFETY: We guarantee that items are ini-
+		// tialised, and `Option<&(K, V)>` is transparent
+		// to `Option<*const (K, V)>`.
+		unsafe { transmute(self.raw.next_back()) }
 	}
 }
 
 impl<K, V> ExactSizeIterator for Iter<'_, K, V> { }
 
 impl<K, V> FusedIterator for Iter<'_, K, V> { }
+
+impl<'a, K, V> Iterator for Iter<'a, K, V> {
+	type Item = &'a (K, V);
+
+	#[inline(always)]
+	fn next(&mut self) -> Option<Self::Item> {
+		// SAFETY: We guarantee that items are ini-
+		// tialised, and `Option<&(K, V)>` is transparent
+		// to `Option<*const (K, V)>`.
+		unsafe { transmute(self.raw.next()) }
+	}
+
+	#[inline(always)]
+	fn size_hint(&self) -> (usize, Option<usize>) {
+		self.raw.size_hint()
+	}
+}

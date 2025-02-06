@@ -29,27 +29,20 @@
 #[cfg(test)]
 mod test;
 
-use crate::{IntoIter, Iter, IterMut};
+use crate::{IntoIter, Iter, IterMut, RawIdentityMap};
 
 use alloc::alloc::{Allocator, Global};
-use core::alloc::Layout;
-use core::any::type_name;
 use core::hash::{Hash, Hasher};
 use core::mem::{swap, ManuallyDrop};
 use core::ops::{Index, IndexMut};
-use core::ptr::{copy, drop_in_place, NonNull};
-use core::slice;
+use core::ptr::{self, copy, drop_in_place};
 
 /// An allocated identity map.
 ///
 /// This map associates specific keys with specific values.
 /// Unlike other maps such as `HashMap`, this type only transforms keys as if the [`identity`](core::convert::identity) function was used.
 pub struct IdentityMap<K, V, A: Allocator = Global> {
-	alloc: A,
-
-	cap: isize,
-	len: usize,
-	ptr: NonNull<(K, V)>,
+	raw: RawIdentityMap<K, V, A>,
 }
 
 impl<K, V> IdentityMap<K, V> {
@@ -82,6 +75,7 @@ impl<K, V> IdentityMap<K, V> {
 	/// The provided parts must have been previously been deconstructed from another identity map.
 	#[inline(always)]
 	#[must_use]
+	#[track_caller]
 	pub unsafe fn from_raw_parts(ptr: *mut (K, V), cap: usize, len: usize) -> Self {
 		unsafe { Self::from_raw_parts_in(ptr, cap, len, Global) }
 	}
@@ -102,13 +96,8 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 	#[must_use]
 	#[track_caller]
 	pub fn new_in(alloc: A) -> Self {
-		Self {
-			alloc,
-
-			cap: Default::default(),
-			len: Default::default(),
-			ptr: NonNull::dangling(),
-		}
+		let raw = RawIdentityMap::new_in(alloc);
+		Self { raw }
 	}
 
 	/// Preallocates a new identity map with a specific allocator.
@@ -122,10 +111,8 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 	#[must_use]
 	#[track_caller]
 	pub fn with_capacity_in(count: usize, alloc: A) -> Self {
-		let mut this = Self::new_in(alloc);
-		this.allocate(count);
-
-		this
+		let raw = RawIdentityMap::with_capacity_in(count, alloc);
+		Self { raw }
 	}
 
 	/// Constructs a new identity map from raw parts.
@@ -135,59 +122,15 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 	/// The provided parts must have been previously been deconstructed from another identity map.
 	#[inline(always)]
 	#[must_use]
+	#[track_caller]
 	pub unsafe fn from_raw_parts_in(
 		ptr:   *mut (K, V),
 		cap:   usize,
 		len:   usize,
 		alloc: A,
 	) -> Self {
-		debug_assert!(cap <= isize::MAX as usize);
-		let cap = cap as isize;
-
-		let ptr = match cap {
-			0x0 => NonNull::dangling(),
-			_   => unsafe { NonNull::new_unchecked(ptr) }
-		};
-
-		Self {
-			alloc,
-
-			cap,
-			len,
-			ptr,
-		}
-	}
-
-	/// Allocates the identity map.
-	///
-	/// Note that calling this method will leak any existing memory allocation made by this map -- if any.
-	///
-	/// # Panics
-	///
-	/// This method will panic if `count` is greater than [`isize::MAX`].
-	#[inline]
-	fn allocate(&mut self, count: usize) {
-		assert!(count <= isize::MAX as usize);
-
-		let layout = match Layout::array::<(K, V)>(count) {
-			Ok(layout) => layout,
-
-			Err(e) => {
-				let type_name = type_name::<(K, V)>();
-
-				panic!("unable to create layout for `[{type_name}; {count}]`: {e}");
-			}
-		};
-
-		let ptr = match self.alloc.allocate(layout) {
-			Ok(ptr) => ptr,
-
-			Err(e) => panic!("unable to allocate: {e}"),
-		};
-
-		self.cap = ptr.len() as isize;
-		self.len = Default::default();
-		self.ptr = ptr.cast();
+		let raw = unsafe { RawIdentityMap::from_raw_parts_in(ptr, cap, len, alloc) };
+		Self { raw }
 	}
 
 	/// Reserves additional capacity for the map.
@@ -196,54 +139,17 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 	///
 	/// This method will panic if the internal buffer could not be grown.
 	/// It will also panic if the new capacity of the map is greater than [`isize::MAX`].
-	#[inline]
+	#[inline(always)]
+	#[track_caller]
 	pub fn reserve(&mut self, count: usize) {
-		if self.cap < 0x0 {
-			self.allocate(count);
-			return;
-		}
-
-		let old_cap = self.capacity();
-		let new_cap = self.capacity() + count;
-
-		assert!(new_cap <= isize::MAX as usize);
-
-		let old_layout = Layout::array::<(K, V)>(old_cap).unwrap();
-
-		let new_layout = match Layout::array::<(K, V)>(new_cap) {
-			Ok(layout) => layout,
-
-			Err(e) => {
-				let type_name = type_name::<(K, V)>();
-
-				panic!("unable to create layout for `[{type_name}; {new_cap}]`: {e}");
-			}
-		};
-
-		let ptr = self.ptr.cast();
-
-		// SAFETY: We guarantee that the following is true:
-		//
-		// * That `ptr` was previously returned by a call
-		//   to `A::allocate`;
-		//
-		// * That `old_layout` was the layout used in the
-		//   initial call to `allocate`;
-		let ptr = match unsafe { self.alloc.grow(ptr, old_layout, new_layout) } {
-			Ok(ptr) => ptr,
-
-			Err(e) => panic!("unable to allocate: {e}"),
-		};
-
-		self.cap = ptr.len() as isize;
-		self.ptr = ptr.cast();
+		self.raw.reserve(count);
 	}
 
 	/// Borrows the map's allocator.
 	#[inline(always)]
 	#[must_use]
 	pub fn allocator(&self) -> &A {
-		self.alloc.by_ref()
+		self.raw.allocator()
 	}
 
 	/// Gets a iterator of the containedf key/value pairs.
@@ -264,16 +170,14 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 	#[inline(always)]
 	#[must_use]
 	pub fn capacity(&self) -> usize {
-		let mask = usize::MAX ^ 0x1;
-
-		(self.cap as usize) & mask
+		self.raw.capacity()
 	}
 
 	/// Retrieves the current length of the map.
 	#[inline(always)]
 	#[must_use]
 	pub fn len(&self) -> usize {
-		self.len
+		self.raw.len()
 	}
 
 	/// Tests if the map is empty.
@@ -289,7 +193,7 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 	#[inline(always)]
 	#[must_use]
 	pub fn as_ptr(&self) -> *const (K, V) {
-		self.ptr.as_ptr().cast_const()
+		self.raw.as_ptr()
 	}
 
 	/// Gets a mutable pointer to the map buffer.
@@ -298,52 +202,43 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 	#[inline(always)]
 	#[must_use]
 	pub fn as_mut_ptr(&mut self) -> *mut (K, V) {
-		self.ptr.as_ptr()
+		self.raw.as_mut_ptr()
 	}
 
 	/// Gets a slice over the map's key/value pairs.
 	#[inline(always)]
 	#[must_use]
 	pub fn as_slice(&self) -> &[(K, V)] {
-		let len = self.len();
-		let ptr = self.as_ptr();
-
-		unsafe { slice::from_raw_parts(ptr, len) }
+		// SAFETY: We guarantee that all items are ini-
+		// tialised.
+		unsafe { &*self.raw.as_slice() }
 	}
 
 	/// Gets a mutable slice over the map's key/value pairs.
 	#[inline(always)]
 	#[must_use]
 	pub fn as_mut_slice(&mut self) -> &mut [(K, V)] {
-		let len = self.len();
-		let ptr = self.as_mut_ptr();
+		// SAFETY: We guarantee that all items are ini-
+		// tialised.
+		unsafe { &mut *self.raw.as_mut_slice() }
+	}
 
-		unsafe { slice::from_raw_parts_mut(ptr, len) }
+	#[inline(always)]
+	#[must_use]
+	fn into_raw_identity_map(self) -> RawIdentityMap<K, V, A> {
+		let this = ManuallyDrop::new(self);
+
+		// SAFETY: `raw` is not used in `this` after this
+		// read as `this` does not implement `Drop`.
+		unsafe { (&raw const this.raw).read() }
 	}
 
 	/// Deconstructs the map into its raw parts.
 	#[inline(always)]
 	#[must_use]
-	pub fn into_raw_parts_with_allow(mut self) -> (*mut (K, V), usize, usize, A) {
-		let cap = self.capacity();
-		let len = self.len();
-		let ptr = self.as_mut_ptr();
-
-		// Extract the allocator. Remember that we cannot
-		// simply take is as `Self` implements `Drop`.
-
-		let this = ManuallyDrop::new(self);
-
-		let alloc = unsafe {
-			let ptr = &raw const this.alloc;
-
-			// SAFETY: The original memory is not dropped using
-			// `Drop`, so we do not need to worry about `!Copy`
-			// types.
-			ptr.read()
-		};
-
-		(ptr, cap, len, alloc)
+	pub fn into_raw_parts_with_allow(self) -> (*mut (K, V), usize, usize, A) {
+		let raw = self.into_raw_identity_map();
+		raw.into_raw_parts_with_allow()
 	}
 }
 
@@ -361,6 +256,7 @@ where
 	///
 	/// If the map did not already hold `key` as a key and could not grow its buffer to accommodate the `key` & `value` pair, then this method will panic.
 	#[inline]
+	#[track_caller]
 	pub fn insert(&mut self, key: K, mut value: V) -> Option<V> {
 		// Check if we already have the key, and if so up-
 		// date its value and short-circuit.
@@ -376,23 +272,29 @@ where
 		// Reserve room for another element if there isn't
 		// already room for it.
 
-		if self.len() == self.capacity() {
+		let mut len = self.len();
+
+		if len == self.capacity() {
 			self.reserve(0x1);
 		}
+
+		debug_assert!(self.capacity() > len);
 
 		// Write new pair into the new slot.
 
 		unsafe {
 			// SAFETY: `len` will always be within bounds as we
-			// have just reserved an extra byte as well.
-			let ptr = self.as_mut_ptr().add(self.len());
+			// have just reserved an extra byte in case the
+			// buffer was full.
+			let ptr = self.as_mut_ptr().add(len);
 
 			ptr.write((key, value));
 		}
 
 		// Increment the length counter (by one).
 
-		self.len += 0x1;
+		len += 0x1;
+		unsafe { self.raw.set_len(len) };
 
 		// Return nothing as the key wasn't already pre-
 		// sent.
@@ -405,6 +307,7 @@ where
 	/// The associated value is returned from this method.
 	/// If no pair existed with the provided key, then this method will instead return a [`None`] instance.
 	#[inline]
+	#[track_caller]
 	pub fn remove(&mut self, key: &K) -> Option<V> {
 		let mut index = None;
 
@@ -433,15 +336,15 @@ where
 
 		unsafe {
 			let len = self.len() - index;
-			let dst = self.as_mut_ptr().add(index);
 			let src = self.as_ptr().add(index).add(0x1);
+			let dst = self.as_mut_ptr().add(index);
 
 			copy(src, dst, len);
 		}
 
 		// Decrease the length counter (by one).
 
-		self.len -= 0x1;
+		unsafe { self.raw.set_len(self.raw.len() - 0x1) };
 
 		// Return the value.
 
@@ -451,6 +354,7 @@ where
 	/// Borrows the associated value of a key.
 	#[inline(always)]
 	#[must_use]
+	#[track_caller]
 	pub fn get(&self, key: &K) -> Option<&V> {
 		for (other_key, other_value) in self {
 			if *other_key == *key { return Some(other_value) };
@@ -462,6 +366,7 @@ where
 	/// Mutably borrows the associated value of a key.
 	#[inline(always)]
 	#[must_use]
+	#[track_caller]
 	pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
 		for (other_key, other_value) in self {
 			if *other_key == *key { return Some(other_value) };
@@ -478,6 +383,39 @@ where
 	}
 }
 
+impl<K, V, A> Clone for IdentityMap<K, V, A>
+where
+	K: Clone,
+	V: Clone,
+	A: Allocator + Clone,
+{
+	#[inline]
+	fn clone(&self) -> Self {
+		let len = self.len();
+
+		let mut raw = self.raw.clone();
+
+		for i in 0x0..len {
+			// SAFETY: `i` is within bounds and the item at
+			// that index is initialised.
+			let item = unsafe { &*self.as_ptr().add(i) };
+
+			let value = item.clone();
+
+			// SAFETY: `i` is likewise a valid index here.
+			let slot = unsafe { raw.as_mut_ptr().add(i) };
+
+			unsafe { slot.write(value) };
+		}
+
+		// SAFETY: The first `len` elements have been ini-
+		// tialised.
+		unsafe { raw.set_len(len) };
+
+		Self { raw }
+	}
+}
+
 impl<K, V, A: Allocator + Default> Default for IdentityMap<K, V, A> {
 	#[inline(always)]
 	fn default() -> Self {
@@ -486,26 +424,15 @@ impl<K, V, A: Allocator + Default> Default for IdentityMap<K, V, A> {
 }
 
 impl<K, V, A: Allocator> Drop for IdentityMap<K, V, A> {
-	#[inline]
+	#[inline(always)]
 	fn drop(&mut self) {
-		if self.cap < 0x0 { return };
+		// Drop all items that are still alive.
 
-		let remaining: *mut [(K, V)] = unsafe {
-			let len = self.len();
-			let ptr = self.as_mut_ptr();
+		let remaining = ptr::from_mut(self.as_mut_slice());
 
-			slice::from_raw_parts_mut(ptr, len)
-		};
-
+		// SAFETY: `as_mut_slice` guarantees a valid ref-
+		// erence to valid objects.
 		unsafe { drop_in_place(remaining) };
-
-		unsafe {
-			let layout = Layout::array::<(K, V)>(self.cap as usize).unwrap();
-
-			let ptr = self.ptr.cast();
-
-			self.alloc.deallocate(ptr, layout);
-		}
 	}
 }
 
@@ -517,14 +444,7 @@ where
 {
 	#[inline(always)]
 	fn hash<H: Hasher>(&self, state: &mut H) {
-		let data = unsafe {
-			let len = self.len();
-			let ptr = self.ptr.as_ptr().cast_const();
-
-			slice::from_raw_parts(ptr, len)
-		};
-
-		data.hash(state)
+		self.as_slice().hash(state);
 	}
 }
 
@@ -536,6 +456,7 @@ where
 	type Output = V;
 
 	#[inline(always)]
+	#[track_caller]
 	fn index(&self, index: &K) -> &Self::Output {
 		self.get(index).unwrap()
 	}
@@ -547,6 +468,7 @@ where
 	A: Allocator,
 {
 	#[inline(always)]
+	#[track_caller]
 	fn index_mut(&mut self, index: &K) -> &mut Self::Output {
 		self.get_mut(index).unwrap()
 	}
@@ -563,14 +485,11 @@ where
 
 	#[inline(always)]
 	fn into_iter(self) -> Self::IntoIter {
-		let (ptr, cap, len, alloc) = self.into_raw_parts_with_allow();
+		let raw = self.into_raw_identity_map();
 
-		unsafe { IntoIter::new(
-			ptr,
-			cap,
-			len,
-			alloc,
-		) }
+		// SAFETY: We guarantee that all items are ini-
+		// tialised.
+		unsafe { IntoIter::new(raw) }
 	}
 }
 

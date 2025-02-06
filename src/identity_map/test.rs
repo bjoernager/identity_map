@@ -49,8 +49,8 @@ fn test_identity_map() {
 	assert!(!map.contains(&u32::MAX));
 	assert!(!map.contains(&(i32::MAX as u32)));
 
-	map.insert(u32::MIN, u32::MAX);
-	map.insert(u32::MAX, u32::MIN);
+	assert_eq!(map.insert(u32::MIN, u32::MAX), None);
+	assert_eq!(map.insert(u32::MAX, u32::MIN), None);
 
 	assert!(map.capacity() >= 0x100);
 	assert!(map.len() == 0x2);
@@ -88,12 +88,27 @@ fn test_identity_map() {
 }
 
 #[test]
+fn test_identity_map_clone() {
+	let mut m0 = IdentityMap::<usize, char>::new();
+
+	assert_eq!(m0.insert(0x0, '\u{20A3}'), None);
+	assert_eq!(m0.insert(0x1, '\u{2611}'), None);
+
+	let mut m1 = m0.clone();
+
+	assert_eq!(m0.remove(&0x0), Some('\u{20A3}'));
+	assert_eq!(m1.remove(&0x0), Some('\u{20A3}'));
+	assert_eq!(m0.remove(&0x1), Some('\u{2611}'));
+	assert_eq!(m1.remove(&0x1), Some('\u{2611}'));
+}
+
+#[test]
 fn test_identity_map_iter() {
 	let mut map = IdentityMap::<u8, u8>::new();
 
-	map.insert(0xFF, 0x00);
-	map.insert(0x7F, 0x80);
-	map.insert(0x00, 0xFF);
+	assert_eq!(map.insert(0xFF, 0x00), None);
+	assert_eq!(map.insert(0x7F, 0x80), None);
+	assert_eq!(map.insert(0x00, 0xFF), None);
 
 	let mut iter = map.iter();
 
