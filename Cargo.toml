@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Gabriel Bjørnager Jensen.
+# Copyright 2025 Gabriel Bjørnager Jensen.
 #
 # Permission is hereby granted, free of charge, to
 # any person obtaining a copy of this software and
@@ -18,7 +18,7 @@
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WAR-
 # RANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUD-
 # ING BUT NOT LIMITED TO THE WARRANTIES OF MER-
-# CHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
+# CHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
 # AND NONINFRINGEMENT. IN NO EVENT SHALL THE AU-
 # THORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
 # CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
@@ -28,15 +28,22 @@
 
 [package]
 name          = "identity_map"
-version       = "0.1.0"
+version       = "0.2.0"
 authors       = ["Gabriel Bjørnager Jensen"]
-edition       = "2024"
-rust-version  = "1.85"
+edition       = "2021"
+rust-version  = "1.82"
 description   = "Identity-based maps."
-documentation = "https://docs.rs/identity_map/latest/identity_map/"
+documentation = "https://docs.rs/identity_map/"
+readme        = "README.md"
 homepage      = "https://crates.io/crates/identity_map/"
 repository    = "https://gitlab.com/bjoernager/identity_map/"
 license       = "MIT"
+
+[dependencies]
+allocator-api2 = "0.2"
+
+[features]
+allocator_api = []
 
 [workspace.lints.clippy]
 alloc_instead_of_core              = "forbid"
@@ -98,6 +105,7 @@ index_refutable_slice              = "warn"
 inefficient_to_string              = "warn"
 infinite_loop                      = "forbid"
 into_iter_without_iter             = "warn"
+invalid_atomic_ordering            = "forbid"
 invalid_upcast_comparisons         = "warn"
 iter_filter_is_ok                  = "warn"
 iter_filter_is_some                = "warn"
@@ -144,7 +152,6 @@ option_option                      = "warn"
 or_fun_call                        = "forbid"
 path_buf_push_overwrite            = "warn"
 pattern_type_mismatch              = "forbid"
-ptr_as_ptr                         = "forbid"
 ptr_cast_constness                 = "forbid"
 pub_underscore_fields              = "forbid"
 range_plus_one                     = "warn"

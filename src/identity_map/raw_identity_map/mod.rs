@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Gabriel Bjørnager Jensen.
+// Copyright 2025 Gabriel Bjørnager Jensen.
 //
 // Permission is hereby granted, free of charge, to
 // any person obtaining a copy of this software and
@@ -18,7 +18,7 @@
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WAR-
 // RANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUD-
 // ING BUT NOT LIMITED TO THE WARRANTIES OF MER-
-// CHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
+// CHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
 // AND NONINFRINGEMENT. IN NO EVENT SHALL THE AU-
 // THORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
 // CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
@@ -26,17 +26,22 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use alloc::alloc::{Allocator, Global};
+use alloc::alloc::handle_alloc_error;
+use allocator_api2::alloc::{Allocator, Global};
 use core::alloc::Layout;
 use core::any::type_name;
 use core::mem::ManuallyDrop;
-use core::ptr::{self, copy_nonoverlapping, NonNull};
+use core::ptr::{self, copy, copy_nonoverlapping, NonNull};
 
 // NOTE: `cap` can always safely be cast to `usize`
 // if `is_allocated` returns `false`. This is also
 // the preferred option, if possible, over using
 // `capacity`.
 
+/// A raw identity map.
+///
+/// This type is used internally for handling allocations of map buffers.
+/// It does not, however, give any promises with regard to the state of the contained items.
 pub struct RawIdentityMap<K, V, A: Allocator = Global> {
 	alloc: A,
 
@@ -114,12 +119,12 @@ impl<K, V, A: Allocator> RawIdentityMap<K, V, A> {
 		let ptr = match self.alloc.allocate(layout) {
 			Ok(ptr) => ptr,
 
-			Err(e) => panic!("unable to allocate: {e}"),
+			_ => handle_alloc_error(layout),
 		};
 
 		self.cap = count as isize;
 		self.len = Default::default();
-		self.ptr = ptr.cast();
+		self.ptr = ptr.cast::<(K, V)>();
 	}
 
 	#[inline]
@@ -154,7 +159,7 @@ impl<K, V, A: Allocator> RawIdentityMap<K, V, A> {
 		// Note: `Layout::array` tests that `new_cap` is not
 		// greater than `isize::MAX`.
 
-		let ptr = self.ptr.cast();
+		let ptr = self.ptr.cast::<u8>();
 
 		// SAFETY: We guarantee that the following is true:
 		//
@@ -166,13 +171,13 @@ impl<K, V, A: Allocator> RawIdentityMap<K, V, A> {
 		let ptr = match unsafe { self.alloc.grow(ptr, old_layout, new_layout) } {
 			Ok(ptr) => ptr,
 
-			Err(e) => panic!("unable to allocate: {e}"),
+			_ => handle_alloc_error(new_layout),
 		};
 
 		debug_assert!(ptr.len() <= isize::MAX as usize);
 
 		self.cap = new_cap as isize;
-		self.ptr = ptr.cast();
+		self.ptr = ptr.cast::<(K, V)>();
 	}
 
 	#[inline(always)]
@@ -265,6 +270,80 @@ impl<K, V, A: Allocator> RawIdentityMap<K, V, A> {
 	}
 }
 
+impl<K, V, A: Allocator> RawIdentityMap<K, V, A> {
+	/// Inserts a new pair the specified index.
+	///
+	/// All existing key-value pairs from the specified index to the end of the internal buffer are moved down back by one.
+	///
+	/// The internal buffer is grown to accommodate the new pair.
+	pub unsafe fn insert(&mut self, index: usize, key: K, value: V) {
+		debug_assert!(index <= self.len());
+
+		// Shift every following item that is still alive
+		// down back (by one).
+
+		unsafe {
+			let len = self.len() - index;
+			let src = self.ptr.as_ptr().cast_const().add(index);
+			let dst = self.ptr.as_ptr().add(index).add(0x1);
+
+			copy(src, dst, len);
+		}
+
+		// Write the new pair into the new slot.
+
+		unsafe {
+			// SAFETY: `len` will always be within bounds as we
+			// have just reserved an extra byte in case the
+			// buffer was full.
+			let ptr = self.ptr.as_ptr().add(index);
+
+			ptr.write((key, value));
+		}
+
+		// Increment the length counter (by one).
+
+		self.len += 0x1;
+	}
+
+	/// Removes a pair at the specified index.
+	///
+	/// All key-value pairs after the specified index are moved up front by one.
+	///
+	/// # Safety
+	///
+	/// `index` must be within the bounds of the internal buffer.
+	/// Additionally, the key-value pair at that index must be initialised and alive.
+	pub unsafe fn remove(&mut self, index: usize) -> (K, V) {
+		debug_assert!(index <= self.len());
+
+		// Read the pair from the slot.
+
+		let pair = unsafe {
+			let ptr = self.ptr.as_ptr().cast_const();
+
+			ptr.read()
+		};
+
+		// Shift every following item that is still alive
+		// up front (by one).
+
+		unsafe {
+			let len = self.len() - index;
+			let src = self.ptr.as_ptr().cast_const().add(index).add(0x1);
+			let dst = self.ptr.as_ptr().add(index);
+
+			copy(src, dst, len);
+		}
+
+		// Decrement the length counter (by one).
+
+		self.len -= 0x1;
+
+		pair
+	}
+}
+
 impl<K, V, A> Clone for RawIdentityMap<K, V, A>
 where
 	K: Clone,
@@ -278,11 +357,11 @@ where
 		if self.is_allocated() { return Self::new_in(alloc) };
 
 		let cap = self.cap as usize;
-		let mut new = Self::with_capacity_in(cap, alloc);
+		let new = Self::with_capacity_in(cap, alloc);
 
 		unsafe {
-			let src = self.as_ptr();
-			let dst = new.as_mut_ptr();
+			let src = self.ptr.as_ptr().cast_const();
+			let dst = new.ptr.as_ptr();
 
 			copy_nonoverlapping(src, dst, cap);
 		}
@@ -313,13 +392,15 @@ impl<K, V, A: Allocator> Drop for RawIdentityMap<K, V, A> {
 		unsafe {
 			let layout = Layout::array::<(K, V)>(self.cap as usize).unwrap();
 
-			let ptr = self.ptr.cast();
+			let ptr = self.ptr.cast::<u8>();
 
 			self.alloc.deallocate(ptr, layout);
 		}
 	}
 }
 
+// SAFETY: The internal pointer will always be
+// unique.
 unsafe impl<K, V, A> Send for RawIdentityMap<K, V, A>
 where
 	K: Send,
@@ -327,6 +408,8 @@ where
 	A: Allocator  + Send,
 { }
 
+// SAFETY: The internal pointer will always be
+// unique.
 unsafe impl<K, V, A> Sync for RawIdentityMap<K, V, A>
 where
 	K: Sync,

@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Gabriel Bjørnager Jensen.
+// Copyright 2025 Gabriel Bjørnager Jensen.
 //
 // Permission is hereby granted, free of charge, to
 // any person obtaining a copy of this software and
@@ -18,7 +18,7 @@
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WAR-
 // RANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUD-
 // ING BUT NOT LIMITED TO THE WARRANTIES OF MER-
-// CHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
+// CHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
 // AND NONINFRINGEMENT. IN NO EVENT SHALL THE AU-
 // THORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
 // CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
@@ -26,10 +26,10 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use crate::RawIdentityMap;
+use crate::identity_map::{IdentityMap, RawIdentityMap};
 
+use allocator_api2::alloc::{Allocator, Global};
 use core::fmt::{self, Debug, Formatter};
-use alloc::alloc::{Allocator, Global};
 use core::iter::FusedIterator;
 use core::ptr::{self, drop_in_place};
 
@@ -48,7 +48,9 @@ impl<K, V, A: Allocator> IntoIter<K, V, A> {
 	///
 	/// The provided, raw identity map must be initialised.
 	#[inline(always)]
-	pub(super) unsafe fn new(raw: RawIdentityMap<K, V, A>) -> Self {
+	pub(crate) fn new(map: IdentityMap<K, V, A>) -> Self {
+		let raw = map.into_raw_identity_map();
+
 		Self {
 			pos: Default::default(),
 			raw,
@@ -81,20 +83,6 @@ impl<K, V, A: Allocator> IntoIter<K, V, A> {
 	#[must_use]
 	pub fn as_mut_slice(&mut self) -> &mut [(K, V)] {
 		unsafe { &mut *self.raw.as_mut_slice() }
-	}
-}
-
-impl<K, V, A: Allocator> AsMut<[(K, V)]> for IntoIter<K, V, A> {
-	#[inline(always)]
-	fn as_mut(&mut self) -> &mut [(K, V)] {
-		self.as_mut_slice()
-	}
-}
-
-impl<K, V, A: Allocator> AsRef<[(K, V)]> for IntoIter<K, V, A> {
-	#[inline(always)]
-	fn as_ref(&self) -> &[(K, V)] {
-		self.as_slice()
 	}
 }
 

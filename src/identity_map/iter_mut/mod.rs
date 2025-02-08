@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Gabriel Bjørnager Jensen.
+// Copyright 2025 Gabriel Bjørnager Jensen.
 //
 // Permission is hereby granted, free of charge, to
 // any person obtaining a copy of this software and
@@ -18,7 +18,7 @@
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WAR-
 // RANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUD-
 // ING BUT NOT LIMITED TO THE WARRANTIES OF MER-
-// CHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
+// CHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
 // AND NONINFRINGEMENT. IN NO EVENT SHALL THE AU-
 // THORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
 // CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
@@ -26,8 +26,9 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use crate::RawIter;
+use crate::identity_map::{IdentityMap, RawIter};
 
+use allocator_api2::alloc::Allocator;
 use core::fmt::{self, Debug, Formatter};
 use core::iter::FusedIterator;
 use core::marker::PhantomData;
@@ -36,6 +37,7 @@ use core::ptr;
 
 /// Mutably-borrowing identity map iterator.
 #[must_use]
+#[repr(transparent)]
 #[derive(Default)]
 pub struct IterMut<'a, K, V> {
 	raw: RawIter<K, V>,
@@ -46,11 +48,11 @@ pub struct IterMut<'a, K, V> {
 impl<'a, K, V> IterMut<'a, K, V> {
 	/// Constructs a new, mutably-borrowing identity map iterator.
 	#[inline(always)]
-	pub(super) fn new(buf: &'a mut [(K, V)]) -> Self {
-		let buf = ptr::from_mut(buf);
+	pub(crate) fn new<A: Allocator>(map: &mut IdentityMap<K, V, A>) -> Self {
+		let buf = ptr::from_mut(map.as_mut_slice());
 
-		// SAFETY: Mutable references are always unique and
-		// initialised at their destination.
+		// SAFETY: Mutable references are always non-null,
+		// unique and initialised at their destination.
 		let raw = unsafe { RawIter::new(buf) };
 
 		Self { raw, _buf: PhantomData, }
@@ -73,9 +75,9 @@ impl<'a, K, V> IterMut<'a, K, V> {
 	/// Gets a slice of the key/value pairs.
 	#[inline(always)]
 	#[must_use]
-	pub fn as_slice(&self) -> &[(K, V)] {
-		// SAFETY: We do guarantee that elements are ini-
-		// tialised.
+	pub fn as_slice(&self) -> &'a [(K, V)] {
+		// SAFETY: We guarantee that the lifetime is con-
+		// tained.
 		unsafe { &*self.raw.as_slice() }
 	}
 
@@ -83,24 +85,10 @@ impl<'a, K, V> IterMut<'a, K, V> {
 	#[inline(always)]
 	#[must_use]
 	pub fn as_mut_slice(&mut self) -> &mut [(K, V)] {
-		// SAFETY: We do guarantee that elements are ini-
-		// tialised. The mutable `self` reference also
+		// SAFETY: We guarantee that the lifetime is con-
+		// tained. The mutable `self` reference also
 		// guarantees exclusivity.
 		unsafe { &mut *self.raw.as_mut_slice() }
-	}
-}
-
-impl<K, V> AsMut<[(K, V)]> for IterMut<'_, K, V> {
-	#[inline(always)]
-	fn as_mut(&mut self) -> &mut [(K, V)] {
-		self.as_mut_slice()
-	}
-}
-
-impl<K, V> AsRef<[(K, V)]> for IterMut<'_, K, V> {
-	#[inline(always)]
-	fn as_ref(&self) -> &[(K, V)] {
-		self.as_slice()
 	}
 }
 

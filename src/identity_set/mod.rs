@@ -26,14 +26,11 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-//! The [`IdentityMap`] and associated facilities.
+//! The [`IdentitySet`] and associated facilities.
 
 use crate::use_mod;
 
-use_mod!(pub(crate) raw_identity_map);
-use_mod!(pub(crate) raw_iter);
-
-use_mod!(pub identity_map);
+use_mod!(pub identity_set);
 use_mod!(pub into_iter);
 use_mod!(pub iter);
 use_mod!(pub iter_mut);

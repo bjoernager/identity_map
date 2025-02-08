@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Gabriel Bjørnager Jensen.
+// Copyright 2025 Gabriel Bjørnager Jensen.
 //
 // Permission is hereby granted, free of charge, to
 // any person obtaining a copy of this software and
@@ -18,7 +18,7 @@
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WAR-
 // RANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUD-
 // ING BUT NOT LIMITED TO THE WARRANTIES OF MER-
-// CHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
+// CHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
 // AND NONINFRINGEMENT. IN NO EVENT SHALL THE AU-
 // THORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
 // CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
@@ -26,8 +26,9 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use crate::RawIter;
+use crate::identity_map::{IdentityMap, RawIter};
 
+use allocator_api2::alloc::Allocator;
 use core::fmt::{self, Debug, Formatter};
 use core::iter::FusedIterator;
 use core::marker::PhantomData;
@@ -36,6 +37,7 @@ use core::ptr;
 
 /// Borrowing identity map iterator.
 #[must_use]
+#[repr(transparent)]
 #[derive(Clone, Default)]
 pub struct Iter<'a, K, V> {
 	raw: RawIter<K, V>,
@@ -46,11 +48,11 @@ pub struct Iter<'a, K, V> {
 impl<'a, K, V> Iter<'a, K, V> {
 	/// Constructs a new, borrowing identity map iterator.
 	#[inline(always)]
-	pub(super) fn new(buf: &'a [(K, V)]) -> Self {
-		let buf = ptr::from_ref(buf);
+	pub(crate) fn new<A: Allocator>(map: &IdentityMap<K, V, A>) -> Self {
+		let buf = ptr::from_ref(map.as_slice());
 
-		// SAFETY: References are always initialised at
-		// their destination.
+		// SAFETY: References are always non-null and ini-
+		// tialised at their destination.
 		let raw = unsafe { RawIter::new(buf.cast_mut()) };
 
 		Self { raw, _buf: PhantomData, }
@@ -66,17 +68,10 @@ impl<'a, K, V> Iter<'a, K, V> {
 	/// Gets a slice of the key/value pairs.
 	#[inline(always)]
 	#[must_use]
-	pub fn as_slice(&self) -> &[(K, V)] {
-		// SAFETY: We do guarantee that elements are ini-
-		// tialised.
+	pub fn as_slice(&self) -> &'a [(K, V)] {
+		// SAFETY: We guarantee that the lifetime is con-
+		// tained.
 		unsafe { &*self.raw.as_slice() }
-	}
-}
-
-impl<K, V> AsRef<[(K, V)]> for Iter<'_, K, V> {
-	#[inline(always)]
-	fn as_ref(&self) -> &[(K, V)] {
-		self.as_slice()
 	}
 }
 
@@ -124,3 +119,16 @@ impl<'a, K, V> Iterator for Iter<'a, K, V> {
 		self.raw.size_hint()
 	}
 }
+// SAFETY: `Sync` guarantees that the type can also
+// be sent.
+unsafe impl<K, V> Send for Iter<'_, K, V>
+where
+	K: Sync,
+	V: Sync,
+{ }
+
+unsafe impl<K, V> Sync for Iter<'_, K, V>
+where
+	K: Sync,
+	V: Sync,
+{ }

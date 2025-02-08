@@ -1,4 +1,4 @@
-// Copyright (c) 2025 Gabriel Bjørnager Jensen.
+// Copyright 2025 Gabriel Bjørnager Jensen.
 //
 // Permission is hereby granted, free of charge, to
 // any person obtaining a copy of this software and
@@ -18,7 +18,7 @@
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WAR-
 // RANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUD-
 // ING BUT NOT LIMITED TO THE WARRANTIES OF MER-
-// CHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE
+// CHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
 // AND NONINFRINGEMENT. IN NO EVENT SHALL THE AU-
 // THORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
 // CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
@@ -43,7 +43,7 @@ impl<K, V> RawIter<K, V> {
 		debug_assert!(!buf.is_null());
 
 		// SAFETY: Caller guarnatees the validity of `buf`.
-		let ptr = unsafe { NonNull::new_unchecked(buf.cast()) };
+		let ptr = unsafe { NonNull::new_unchecked(buf as *mut (K, V)) };
 
 		Self {
 			len: buf.len(),
