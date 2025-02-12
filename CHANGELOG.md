@@ -3,6 +3,11 @@
 This is the changelog of [identity_map](https://crates.io/crates/identity_map/).
 See `README.md` for more information.
 
+## 0.3.1
+
+* Add logo
+* Add docs icon
+
 ## 0.3.0
 
 * Require `Eq + Ord` instead of just `Eq` for `IdentityMap` and `IdentitySet`

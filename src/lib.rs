@@ -26,6 +26,8 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+#![doc(html_logo_url = "https://gitlab.com/bjoernager/identity_map/-/raw/master/doc-icon.svg")]
+
 //! `identity_map` is a Rust crate for mapping keys with associated values.
 //!
 //! This crate defines the [`IdentityMap`] and [`IdentitySet`] as analogues to the standard library's [`HashMap`](std::collections::HashMap) and [`HashSet`](std::collections::HashSet).

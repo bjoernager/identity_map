@@ -1,0 +1,25 @@
+<!--
+	Copyright 2025 Gabriel Bjørnager Jensen.
+
+	This work is released under a Creative Commons
+	Attribution-ShareAlike 4.0 International li-
+	cence.
+-->
+
+<svg height="144" width="144" xmlns="http://www.w3.org/2000/svg">
+	<mask id="glyph">
+		<!-- I: -->
+		<polygon fill="white" points="16,48 64,48 64,64 48,64 48,80 64,80 64,96 16,96 16,80 32,80 32,64 16,64" />
+
+		<!-- D: -->
+		<circle cx="104" cy="72" fill="white" r="24" />
+		<circle cx="104" cy="72" fill="black" r="8" />
+
+		<polygon fill="black" points="72,48 104,48 104,96 72,96" />
+
+		<polygon fill="white" points="80,48 104,48 112,56 104,64 96,64 96,80 104,80 112,88 104,96 80,96" />
+	</mask>
+
+	<rect fill="#3435FF" height="100%" width="100%" x="0" y="0" /> <!-- oklch(50% 0.280700 270) -->
+	<rect fill="#FFFFFF" height="100%" mask="url(#glyph)" width="100%" x="0" y="0" />
+</svg>
