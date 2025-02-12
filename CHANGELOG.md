@@ -3,6 +3,10 @@
 This is the changelog of [identity_map](https://crates.io/crates/identity_map/).
 See `README.md` for more information.
 
+## 0.3.2
+
+* Fix `Default` implementations depending on generics where not necessary
+
 ## 0.3.1
 
 * Add logo

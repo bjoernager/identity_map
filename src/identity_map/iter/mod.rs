@@ -35,7 +35,7 @@ use core::slice;
 
 /// Borrowing identity map iterator.
 #[must_use]
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Iter<'a, K, V> {
 	iter: slice::Iter<'a, (K, V)>,
 }
@@ -67,6 +67,14 @@ where
 			.debug_tuple("Iter")
 			.field(&self.iter.as_slice())
 			.finish()
+	}
+}
+
+impl<K, V> Default for Iter<'_, K, V> {
+	#[inline(always)]
+	fn default() -> Self {
+		let iter = Default::default();
+		Self { iter }
 	}
 }
 

@@ -37,7 +37,7 @@ use core::ptr;
 /// Borrowing identity set iterator.
 #[must_use]
 #[repr(transparent)]
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Iter<'a, T> {
 	iter: identity_map::Iter<'a, T, ()>,
 }
@@ -64,6 +64,14 @@ impl<T: Debug> Debug for Iter<'_, T> {
 	#[inline(always)]
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		f.debug_tuple("Iter").field(&self.as_slice()).finish()
+	}
+}
+
+impl<K> Default for Iter<'_, K> {
+	#[inline(always)]
+	fn default() -> Self {
+		let iter = Default::default();
+		Self { iter }
 	}
 }
 

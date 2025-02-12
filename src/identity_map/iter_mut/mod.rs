@@ -35,7 +35,6 @@ use core::slice;
 
 /// Mutably-borrowing identity map iterator.
 #[must_use]
-#[derive(Default)]
 pub struct IterMut<'a, K, V> {
 	iter: slice::IterMut<'a, (K, V)>,
 }
@@ -67,6 +66,14 @@ where
 			.debug_tuple("IterMut")
 			.field(&self.iter.as_slice())
 			.finish()
+	}
+}
+
+impl<K, V> Default for IterMut<'_, K, V> {
+	#[inline(always)]
+	fn default() -> Self {
+		let iter = Default::default();
+		Self { iter }
 	}
 }
 

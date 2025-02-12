@@ -37,7 +37,6 @@ use core::ptr;
 /// Mutably-borrowing identity set iterator.
 #[must_use]
 #[repr(transparent)]
-#[derive(Default)]
 pub struct IterMut<'a, T> {
 	iter: identity_map::IterMut<'a, T, ()>,
 }
@@ -67,6 +66,14 @@ impl<T: Debug> Debug for IterMut<'_, T> {
 			.debug_tuple("IterMut")
 			.field(&self.as_slice())
 			.finish()
+	}
+}
+
+impl<K> Default for IterMut<'_, K> {
+	#[inline(always)]
+	fn default() -> Self {
+		let iter = Default::default();
+		Self { iter }
 	}
 }
 

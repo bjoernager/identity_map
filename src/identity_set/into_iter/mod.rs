@@ -37,7 +37,7 @@ use core::ptr;
 /// Owning identity set iterator.
 #[must_use]
 #[repr(transparent)]
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct IntoIter<T, A: Allocator = Global> {
 	iter: identity_map::IntoIter<T, (), A>,
 }
@@ -75,6 +75,14 @@ where
 			.debug_tuple("IntoIter")
 			.field(&self.as_slice())
 			.finish()
+	}
+}
+
+impl<K, A: Allocator + Default> Default for IntoIter<K, A> {
+	#[inline(always)]
+	fn default() -> Self {
+		let iter = Default::default();
+		Self { iter }
 	}
 }
 

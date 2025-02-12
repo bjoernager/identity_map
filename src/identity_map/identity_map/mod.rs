@@ -46,7 +46,7 @@ use core::ops::{Index, IndexMut};
 /// Unlike other maps such as [`HashMap`](std::collections::HashMap), this type only transforms keys as if the [`identity`](core::convert::identity) function was used.
 #[derive(Clone, Eq, PartialEq)]
 pub struct IdentityMap<K, V, A: Allocator = Global> {
-	buf: Vec<(K, V), A>
+	buf: Vec<(K, V), A>,
 }
 
 impl<K, V> IdentityMap<K, V> {

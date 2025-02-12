@@ -43,7 +43,7 @@ use core::mem::ManuallyDrop;
 ///
 /// Unlike other sets such as [`HashSet`](std::collections::HashSet), this type only transforms keys as if the [`identity`](core::convert::identity) function was used.
 #[repr(transparent)]
-#[derive(Clone, Default, Eq, Hash, PartialEq)]
+#[derive(Clone, Eq, Hash, PartialEq)]
 pub struct IdentitySet<T, A: Allocator = Global> {
 	map: IdentityMap<T, (), A>,
 }
@@ -294,6 +294,13 @@ where
 	#[inline(always)]
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		Debug::fmt(self.as_slice(), f)
+	}
+}
+
+impl<K, A: Allocator + Default> Default for IdentitySet<K, A> {
+	#[inline(always)]
+	fn default() -> Self {
+		Self::new_in(Default::default())
 	}
 }
 
