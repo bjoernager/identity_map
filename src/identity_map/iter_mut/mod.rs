@@ -26,69 +26,33 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use crate::identity_map::{IdentityMap, RawIter};
+use crate::identity_map::IdentityMap;
 
 use allocator_api2::alloc::Allocator;
 use core::fmt::{self, Debug, Formatter};
 use core::iter::FusedIterator;
-use core::marker::PhantomData;
-use core::mem::transmute;
-use core::ptr;
+use core::slice;
 
 /// Mutably-borrowing identity map iterator.
 #[must_use]
-#[repr(transparent)]
 #[derive(Default)]
 pub struct IterMut<'a, K, V> {
-	raw: RawIter<K, V>,
-
-	_buf: PhantomData<&'a mut [(K, V)]>,
+	iter: slice::IterMut<'a, (K, V)>,
 }
 
 impl<'a, K, V> IterMut<'a, K, V> {
 	/// Constructs a new, mutably-borrowing identity map iterator.
 	#[inline(always)]
-	pub(crate) fn new<A: Allocator>(map: &mut IdentityMap<K, V, A>) -> Self {
-		let buf = ptr::from_mut(map.as_mut_slice());
-
-		// SAFETY: Mutable references are always non-null,
-		// unique and initialised at their destination.
-		let raw = unsafe { RawIter::new(buf) };
-
-		Self { raw, _buf: PhantomData, }
+	pub(crate) fn new<A: Allocator>(map: &'a mut IdentityMap<K, V, A>) -> Self {
+		let iter = map.as_mut_slice().iter_mut();
+		Self { iter }
 	}
 
-	/// Gets a pointer to the first key/value pairs.
+	/// Gets a slice of the key-value pairs.
 	#[inline(always)]
 	#[must_use]
-	pub fn as_ptr(&self) -> *const (K, V) {
-		self.raw.as_ptr()
-	}
-
-	/// Gets a mutable pointer to the first key/value pairs.
-	#[inline(always)]
-	#[must_use]
-	pub fn as_mut_ptr(&mut self) -> *mut (K, V) {
-		self.raw.as_mut_ptr()
-	}
-
-	/// Gets a slice of the key/value pairs.
-	#[inline(always)]
-	#[must_use]
-	pub fn as_slice(&self) -> &'a [(K, V)] {
-		// SAFETY: We guarantee that the lifetime is con-
-		// tained.
-		unsafe { &*self.raw.as_slice() }
-	}
-
-	/// Gets a mutable slice of the key/value pairs.
-	#[inline(always)]
-	#[must_use]
-	pub fn as_mut_slice(&mut self) -> &mut [(K, V)] {
-		// SAFETY: We guarantee that the lifetime is con-
-		// tained. The mutable `self` reference also
-		// guarantees exclusivity.
-		unsafe { &mut *self.raw.as_mut_slice() }
+	pub(crate) fn as_slice(&self) -> &[(K, V)] {
+		self.iter.as_slice()
 	}
 }
 
@@ -101,7 +65,7 @@ where
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		f
 			.debug_tuple("IterMut")
-			.field(&self.as_slice())
+			.field(&self.iter.as_slice())
 			.finish()
 	}
 }
@@ -109,10 +73,7 @@ where
 impl<K, V> DoubleEndedIterator for IterMut<'_, K, V> {
 	#[inline(always)]
 	fn next_back(&mut self) -> Option<Self::Item> {
-		// SAFETY: We guarantee that items are ini-
-		// tialised, and `Option<&mut (K, V)>` is trans-
-		// parent to `Option<*mut (K, V)>`.
-		unsafe { transmute(self.raw.next_back()) }
+		self.iter.next_back()
 	}
 }
 
@@ -125,30 +86,11 @@ impl<'a, K, V> Iterator for IterMut<'a, K, V> {
 
 	#[inline(always)]
 	fn next(&mut self) -> Option<Self::Item> {
-		// SAFETY: We guarantee that items are ini-
-		// tialised, and `Option<&mut (K, V)>` is trans-
-		// parent to `Option<*mut (K, V)>`.
-		unsafe { transmute(self.raw.next()) }
+		self.iter.next()
 	}
 
 	#[inline(always)]
 	fn size_hint(&self) -> (usize, Option<usize>) {
-		self.raw.size_hint()
+		self.iter.size_hint()
 	}
 }
-
-// SAFETY: The internal pointer is guaranteed to
-// be exclusive.
-unsafe impl<K, V> Send for IterMut<'_, K, V>
-where
-	K: Send,
-	V: Send,
-{ }
-
-// SAFETY: The internal pointer is guaranteed to
-// be exclusive.
-unsafe impl<K, V> Sync for IterMut<'_, K, V>
-where
-	K: Sync,
-	V: Sync,
-{ }

@@ -29,22 +29,24 @@
 #[cfg(test)]
 mod test;
 
-use crate::identity_map::{IntoIter, Iter, IterMut,RawIdentityMap};
+use crate::identity_map::{IntoIter, Iter, IterMut};
 
 use allocator_api2::alloc::{Allocator, Global};
+use allocator_api2::vec::Vec;
+use core::borrow::Borrow;
+use core::fmt::{self, Debug, Formatter};
 use core::hash::{Hash, Hasher};
-use core::mem::{swap, ManuallyDrop};
+use core::mem::swap;
 use core::ops::{Index, IndexMut};
-use core::ptr::{self, copy_nonoverlapping, drop_in_place};
 
-/// An allocated identity map.
+/// An ordered identity map.
 ///
-/// This map associates specific keys with specific values.
+/// This map associates specific keys with specific values, whereby each key is unique.
+///
 /// Unlike other maps such as [`HashMap`](std::collections::HashMap), this type only transforms keys as if the [`identity`](core::convert::identity) function was used.
-#[repr(transparent)]
-#[derive(Default)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct IdentityMap<K, V, A: Allocator = Global> {
-	raw: RawIdentityMap<K, V, A>,
+	buf: Vec<(K, V), A>
 }
 
 impl<K, V> IdentityMap<K, V> {
@@ -52,7 +54,7 @@ impl<K, V> IdentityMap<K, V> {
 	#[inline(always)]
 	#[must_use]
 	#[track_caller]
-	pub fn new() -> Self {
+	pub const fn new() -> Self {
 		Self::new_in(Global)
 	}
 
@@ -60,21 +62,21 @@ impl<K, V> IdentityMap<K, V> {
 	///
 	/// # Panics
 	///
-	/// If `[(K, V); count]` could not be allocated using the global allocator, then this function will panic.
+	/// If `[(K, V); cap]` could not be allocated using the global allocator, then this function will panic.
 	///
-	/// This function will also panic if `count` is greater than [`isize::MAX`].
+	/// This function will also panic if `cap` is greater than [`isize::MAX`].
 	#[inline(always)]
 	#[must_use]
 	#[track_caller]
-	pub fn with_capacity(count: usize) -> Self {
-		Self::with_capacity_in(count, Global)
+	pub fn with_capacity(cap: usize) -> Self {
+		Self::with_capacity_in(cap, Global)
 	}
 
 	/// Constructs a new identity map from raw parts.
 	///
 	/// # Safety
 	///
-	/// The provided parts must have been previously been deconstructed from another identity map.
+	/// See [`Vec::from_raw_parts`](alloc::vec::Vec::from_raw_parts).
 	#[inline(always)]
 	#[must_use]
 	#[track_caller]
@@ -83,15 +85,6 @@ impl<K, V> IdentityMap<K, V> {
 		// parts.
 		unsafe { Self::from_raw_parts_in(ptr, cap, len, Global) }
 	}
-
-	/// Deconstructs the map into its raw parts.
-	#[inline(always)]
-	#[must_use]
-	pub fn into_raw_parts(self) -> (*mut (K, V), usize, usize) {
-		let (ptr, cap, len, _alloc) = self.into_raw_parts_with_allow();
-
-		(ptr, cap, len)
-	}
 }
 
 impl<K, V, A: Allocator> IdentityMap<K, V, A> {
@@ -99,31 +92,31 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 	#[inline(always)]
 	#[must_use]
 	#[track_caller]
-	pub fn new_in(alloc: A) -> Self {
-		let raw = RawIdentityMap::new_in(alloc);
-		Self { raw }
+	pub const fn new_in(alloc: A) -> Self {
+		let buf = Vec::new_in(alloc);
+		Self { buf }
 	}
 
 	/// Preallocates a new identity map with a specific allocator.
 	///
 	/// # Panics
 	///
-	/// If `[(K, V); count]` could not be allocated with the given allocator, then this function will panic.
+	/// If `[(K, V); cap]` could not be allocated with the given allocator, then this function will panic.
 	///
-	/// This function will also panic if `count` is greater than [`isize::MAX`].
+	/// This function will also panic if `cap` is greater than [`isize::MAX`].
 	#[inline(always)]
 	#[must_use]
 	#[track_caller]
-	pub fn with_capacity_in(count: usize, alloc: A) -> Self {
-		let raw = RawIdentityMap::with_capacity_in(count, alloc);
-		Self { raw }
+	pub fn with_capacity_in(cap: usize, alloc: A) -> Self {
+		let buf = Vec::with_capacity_in(cap, alloc);
+		Self { buf }
 	}
 
 	/// Constructs a new identity map from raw parts.
 	///
 	/// # Safety
 	///
-	/// The provided parts must have been previously been deconstructed from another identity map.
+	/// See [`Vec::from_raw_parts_in`](alloc::vec::Vec::from_raw_parts_in).
 	#[inline(always)]
 	#[must_use]
 	#[track_caller]
@@ -133,8 +126,8 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 		len:   usize,
 		alloc: A,
 	) -> Self {
-		let raw = unsafe { RawIdentityMap::from_raw_parts_in(ptr, cap, len, alloc) };
-		Self { raw }
+		let buf = unsafe { Vec::from_raw_parts_in(ptr, cap, len, alloc) };
+		Self { buf }
 	}
 
 	/// Reserves additional capacity for the map.
@@ -145,15 +138,15 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 	/// It will also panic if the new capacity of the map is greater than [`isize::MAX`].
 	#[inline(always)]
 	#[track_caller]
-	pub fn reserve(&mut self, count: usize) {
-		self.raw.reserve(count);
+	pub fn reserve(&mut self, len: usize) {
+		self.buf.reserve(len);
 	}
 
 	/// Borrows the map's allocator.
 	#[inline(always)]
 	#[must_use]
 	pub fn allocator(&self) -> &A {
-		self.raw.allocator()
+		self.buf.allocator()
 	}
 
 	/// Gets a iterator of the containedf key-value pairs.
@@ -174,21 +167,21 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 	#[inline(always)]
 	#[must_use]
 	pub fn capacity(&self) -> usize {
-		self.raw.capacity()
+		self.buf.capacity()
 	}
 
 	/// Retrieves the current length of the map.
 	#[inline(always)]
 	#[must_use]
 	pub fn len(&self) -> usize {
-		self.raw.len()
+		self.buf.len()
 	}
 
 	/// Tests if the map is empty.
 	#[inline(always)]
 	#[must_use]
 	pub fn is_empty(&self) -> bool {
-		self.len() == 0x0
+		self.buf.is_empty()
 	}
 
 	/// Gets a pointer to the map buffer.
@@ -197,7 +190,7 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 	#[inline(always)]
 	#[must_use]
 	pub fn as_ptr(&self) -> *const (K, V) {
-		self.raw.as_ptr()
+		self.buf.as_ptr()
 	}
 
 	/// Gets a mutable pointer to the map buffer.
@@ -206,49 +199,33 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 	#[inline(always)]
 	#[must_use]
 	pub fn as_mut_ptr(&mut self) -> *mut (K, V) {
-		self.raw.as_mut_ptr()
+		self.buf.as_mut_ptr()
 	}
 
-	/// Gets a slice over the map's key/value pairs.
+	/// Gets a slice over the map's key-value pairs.
 	#[inline(always)]
 	#[must_use]
 	pub fn as_slice(&self) -> &[(K, V)] {
-		// SAFETY: We guarantee that all items are ini-
-		// tialised.
-		unsafe { &*self.raw.as_slice() }
+		self.buf.as_slice()
 	}
 
-	/// Gets a mutable slice over the map's key/value pairs.
+	/// Gets a mutable slice over the map's key-value pairs.
 	#[inline(always)]
 	#[must_use]
 	pub fn as_mut_slice(&mut self) -> &mut [(K, V)] {
-		// SAFETY: We guarantee that all items are ini-
-		// tialised.
-		unsafe { &mut *self.raw.as_mut_slice() }
+		self.buf.as_mut_slice()
 	}
 
 	#[inline(always)]
 	#[must_use]
-	pub(crate) fn into_raw_identity_map(self) -> RawIdentityMap<K, V, A> {
-		let this = ManuallyDrop::new(self);
-
-		// SAFETY: `raw` is not used in `this` after this
-		// read as `this` does not implement `Drop`.
-		unsafe { (&raw const this.raw).read() }
-	}
-
-	/// Deconstructs the map into its raw parts.
-	#[inline(always)]
-	#[must_use]
-	pub fn into_raw_parts_with_allow(self) -> (*mut (K, V), usize, usize, A) {
-		let raw = self.into_raw_identity_map();
-		raw.into_raw_parts_with_allow()
+	pub(crate) fn into_vec(self) -> Vec<(K, V), A> {
+		self.buf
 	}
 }
 
 impl<K, V, A> IdentityMap<K, V, A>
 where
-	K: Eq,
+	K: Eq + Ord,
 	A: Allocator,
 {
 	/// Inserts a new key-value pair into the map.
@@ -259,36 +236,26 @@ where
 	/// # Panics
 	///
 	/// If the map did not already hold `key` as a key and could not grow its buffer to accommodate the `key` & `value` pair, then this method will panic.
+	/// This includes whether growing the buffer would make its capacity exceed `isize::MAX`, or whether increasing the length would.
 	#[inline]
-	#[track_caller]
 	pub fn insert(&mut self, key: K, mut value: V) -> Option<V> {
 		// Check if we already have the key, and if so up-
 		// date its value and short-circuit.
 
-		for (other_key, other_value) in self.iter_mut() {
-			if *other_key == key {
-				swap(other_value, &mut value);
+		let index = match self.get_index(&key) {
+			Ok(index) => {
+				let (_, other_value) = self.buf.get_mut(index).unwrap();
 
+				swap(other_value, &mut value);
 				return Some(value);
 			}
-		}
 
-		// Reserve room for another element if there isn't
-		// already room for it.
-
-		if self.len() == self.capacity() {
-			self.reserve(0x1);
-		}
-
-		debug_assert!(self.capacity() > self.len());
+			Err(index) => index,
+		};
 
 		// Insert the new pair into the slot.
 
-		let index = self.len();
-
-		// SAFETY: `index` will always be within bounds as
-		// we've just reserved an extra item.
-		unsafe { self.raw.insert(index, key, value) };
+		self.buf.insert(index, (key, value));
 
 		// Return nothing as the key wasn't already pre-
 		// sent.
@@ -301,127 +268,115 @@ where
 	/// The associated value is returned from this method.
 	/// If no pair existed with the provided key, then this method will instead return a [`None`] instance.
 	#[inline]
-	#[track_caller]
 	pub fn remove(&mut self, key: &K) -> Option<V> {
-		let mut index = None;
+		// Search for the given key. Short-circuit if it
+		// the key wasn't present.
 
-		// Search for the given key.
+		let index = match self.get_index(key) {
+			Ok(index) => index,
 
-		for (other_index, (other_key, _)) in self.iter().enumerate() {
-			if *other_key == *key {
-				index = Some(other_index);
-			}
-		}
-
-		// Return if it the key wasn't present.
-
-		let index = index?;
-
-		debug_assert!(index <= self.capacity());
+			_ => return None,
+		};
 
 		// Retrieve the value from the buffer.
 
-		// SAFETY: `index`
-		let (_, value) = unsafe { self.raw.remove(index) };
+		let (_, value) = self.buf.remove(index);
 
 		Some(value)
+	}
+
+	/// Gets the raw index of the specified key.
+	///
+	/// If the key was found in the internal buffer, then an instance of [`Ok`] is returned.
+	/// Otherwise, an index appropriate for inserting said key is wrapped as an [`Err`] instance.
+	#[inline(always)]
+	fn get_index<Q>(&self, key: &Q) -> Result<usize, usize>
+	where
+		K: Borrow<Q>,
+		Q: Eq + Ord + ?Sized,
+	{
+		self.buf.binary_search_by(|(other_key, _)| {
+			let other_key = Borrow::<Q>::borrow(other_key);
+			other_key.cmp(key)
+		})
 	}
 
 	/// Borrows the associated value of a key.
 	#[inline(always)]
 	#[must_use]
 	#[track_caller]
-	pub fn get(&self, key: &K) -> Option<&V> {
-		for (other_key, other_value) in self {
-			if *other_key == *key { return Some(other_value) };
-		}
+	pub fn get<Q>(&self, key: &Q) -> Option<&V>
+	where
+		K: Borrow<Q>,
+		Q: Eq + Ord + ?Sized,
+	{
+		match self.get_index(key) {
+			Ok(index) => {
+				let (_, value) = self.buf.get(index).unwrap();
+				Some(value)
+			}
 
-		None
+			_ => None,
+		}
 	}
 
 	/// Mutably borrows the associated value of a key.
 	#[inline(always)]
 	#[must_use]
 	#[track_caller]
-	pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
-		for (other_key, other_value) in self {
-			if *other_key == *key { return Some(other_value) };
-		}
+	pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
+	where
+		K: Borrow<Q>,
+		Q: Eq + Ord + ?Sized,
+	{
+		match self.get_index(key) {
+			Ok(index) => {
+				let (_, value) = self.buf.get_mut(index).unwrap();
+				Some(value)
+			}
 
-		None
+			_ => None,
+		}
 	}
 
 	/// Checks if the map contains the specified key.
 	#[inline(always)]
 	#[must_use]
-	pub fn contains(&self, key: &K) -> bool {
-		self.get(key).is_some()
+	pub fn contains_key<Q>(&self, key: &Q) -> bool
+	where
+		K: Borrow<Q>,
+		Q: Eq + Ord + ?Sized,
+	{
+		self.get_index(key).is_ok()
 	}
 }
 
-impl<K, V, A> Clone for IdentityMap<K, V, A>
+impl<K, V, A> Debug for IdentityMap<K, V, A>
 where
-	K: Clone,
-	V: Clone,
-	A: Allocator + Clone,
+	K: Debug,
+	V: Debug,
+	A: Allocator,
 {
-	#[inline]
-	fn clone(&self) -> Self {
-		let len = self.len();
-
-		let mut raw = self.raw.clone();
-
-		for i in 0x0..len {
-			// SAFETY: `i` is within bounds and the item at
-			// that index is initialised.
-			let item = unsafe { &*self.raw.as_ptr().add(i) };
-
-			let value = item.clone();
-
-			// SAFETY: `i` is likewise a valid index here.
-			let slot = unsafe { raw.as_mut_ptr().add(i) };
-
-			unsafe { slot.write(value) };
-		}
-
-		// SAFETY: The first `len` elements have been ini-
-		// tialised.
-		unsafe { raw.set_len(len) };
-
-		Self { raw }
-	}
-}
-
-impl<K, V, A: Allocator> Drop for IdentityMap<K, V, A> {
 	#[inline(always)]
-	fn drop(&mut self) {
-		// Drop all items that are still alive.
-
-		let remaining = ptr::from_mut(self.as_mut_slice());
-
-		// SAFETY: `as_mut_slice` guarantees a valid ref-
-		// erence to valid objects.
-		unsafe { drop_in_place(remaining) };
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+		Debug::fmt(self.as_slice(), f)
 	}
 }
 
-impl<K, V, const N: usize> From<[(K, V); N]> for IdentityMap<K, V> {
-	#[inline]
+impl<K, V, A: Allocator + Default> Default for IdentityMap<K, V, A> {
+	#[inline(always)]
+	fn default() -> Self {
+		Self::new_in(Default::default())
+	}
+}
+
+impl<K: Ord, V, const N: usize> From<[(K, V); N]> for IdentityMap<K, V> {
+	#[inline(always)]
 	fn from(value: [(K, V); N]) -> Self {
-		let value = ManuallyDrop::new(value);
+		let mut buf = Vec::from(value);
+		buf.sort_unstable_by(|(k0, _), (k1, _)| k0.cmp(k1));
 
-		let mut this = Self::with_capacity(N);
-
-		unsafe {
-			let src = value.as_ptr();
-			let dst = this.raw.as_mut_ptr();
-
-			copy_nonoverlapping(src, dst, N);
-		}
-
-		unsafe { this.raw.set_len(N) };
-
-		this
+		Self { buf }
 	}
 }
 
@@ -437,28 +392,30 @@ where
 	}
 }
 
-impl<K, V, A> Index<&K> for IdentityMap<K, V, A>
+impl<K, V, A, Q> Index<&Q> for IdentityMap<K, V, A>
 where
-	K: Eq,
+	K: Borrow<Q> + Eq + Ord,
 	A: Allocator,
+	Q: Eq + Ord + ?Sized,
 {
 	type Output = V;
 
 	#[inline(always)]
 	#[track_caller]
-	fn index(&self, index: &K) -> &Self::Output {
+	fn index(&self, index: &Q) -> &Self::Output {
 		self.get(index).unwrap()
 	}
 }
 
-impl<K, V, A> IndexMut<&K> for IdentityMap<K, V, A>
+impl<K, V, A, Q> IndexMut<&Q> for IdentityMap<K, V, A>
 where
-	K: Eq,
+	K: Borrow<Q> + Eq + Ord,
 	A: Allocator,
+	Q: Eq + Ord + ?Sized,
 {
 	#[inline(always)]
 	#[track_caller]
-	fn index_mut(&mut self, index: &K) -> &mut Self::Output {
+	fn index_mut(&mut self, index: &Q) -> &mut Self::Output {
 		self.get_mut(index).unwrap()
 	}
 }

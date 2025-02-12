@@ -32,57 +32,35 @@ use crate::identity_set::IdentitySet;
 use allocator_api2::alloc::Allocator;
 use core::fmt::{self, Debug, Formatter};
 use core::iter::FusedIterator;
+use core::ptr;
 
 /// Mutably-borrowing identity set iterator.
 #[must_use]
 #[repr(transparent)]
 #[derive(Default)]
-pub struct IterMut<'a, K> {
-	iter: identity_map::IterMut<'a, K, ()>,
+pub struct IterMut<'a, T> {
+	iter: identity_map::IterMut<'a, T, ()>,
 }
 
-impl<'a, K> IterMut<'a, K> {
+impl<'a, T> IterMut<'a, T> {
 	/// Constructs a new, mutably-borrowing identity set iterator.
 	#[inline(always)]
-	pub(crate) fn new<A: Allocator>(set: &mut IdentitySet<K, A>) -> Self {
-		let iter = identity_map::IterMut::new(set.as_mut_identity_map());
+	pub(crate) fn new<A: Allocator>(set: &'a mut IdentitySet<T, A>) -> Self {
+		let iter = set.as_mut_map().iter_mut();
 		Self { iter }
 	}
 
-	/// Gets a pointer to the first key/value pairs.
+	/// Gets a slice of the key-value pairs.
 	#[inline(always)]
-	#[must_use]
-	pub fn as_ptr(&self) -> *const K {
-		// SAFETY: `(K, ())` is transparent to `K`.
-		self.iter.as_ptr() as *const K
-	}
+	pub(crate) fn as_slice(&self) -> &[T] {
+		let ptr = ptr::from_ref(self.iter.as_slice()) as *const [T];
 
-	/// Gets a mutable pointer to the first key/value pairs.
-	#[inline(always)]
-	#[must_use]
-	pub fn as_mut_ptr(&mut self) -> *mut K {
-		// SAFETY: `(K, ())` is transparent to `K`.
-		self.iter.as_mut_ptr() as *mut K
-	}
-
-	/// Gets a slice of the key/value pairs.
-	#[inline(always)]
-	#[must_use]
-	pub fn as_slice(&self) -> &'a [K] {
-		// SAFETY: `(K, ())` is transparent to `K`.
-		unsafe { &*(&raw const *self.iter.as_slice() as *const [K]) }
-	}
-
-	/// Gets a mutable slice of the key/value pairs.
-	#[inline(always)]
-	#[must_use]
-	pub fn as_mut_slice(&mut self) -> &'a mut [K] {
-		// SAFETY: `(K, ())` is transparent to `K`.
-		unsafe { &mut *(&raw mut *self.iter.as_mut_slice() as *mut [K]) }
+		// SAFETY: `(T, ())` is transparent to `T`.
+		unsafe { &*ptr }
 	}
 }
 
-impl<K: Debug> Debug for IterMut<'_, K> {
+impl<T: Debug> Debug for IterMut<'_, T> {
 	#[inline(always)]
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		f
@@ -92,19 +70,19 @@ impl<K: Debug> Debug for IterMut<'_, K> {
 	}
 }
 
-impl<K> DoubleEndedIterator for IterMut<'_, K> {
+impl<T> DoubleEndedIterator for IterMut<'_, T> {
 	#[inline(always)]
 	fn next_back(&mut self) -> Option<Self::Item> {
 		self.iter.next_back().map(|(k, _)| k)
 	}
 }
 
-impl<K> ExactSizeIterator for IterMut<'_, K> { }
+impl<T> ExactSizeIterator for IterMut<'_, T> { }
 
-impl<K> FusedIterator for IterMut<'_, K> { }
+impl<T> FusedIterator for IterMut<'_, T> { }
 
-impl<'a, K> Iterator for IterMut<'a, K> {
-	type Item = &'a mut K;
+impl<'a, T> Iterator for IterMut<'a, T> {
+	type Item = &'a mut T;
 
 	#[inline(always)]
 	fn next(&mut self) -> Option<Self::Item> {
@@ -116,11 +94,3 @@ impl<'a, K> Iterator for IterMut<'a, K> {
 		self.iter.size_hint()
 	}
 }
-
-// SAFETY: The internal pointer is guaranteed to
-// be exclusive.
-unsafe impl<K: Send> Send for IterMut<'_, K> { }
-
-// SAFETY: The internal pointer is guaranteed to
-// be exclusive.
-unsafe impl<K: Sync> Sync for IterMut<'_, K> { }

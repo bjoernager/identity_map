@@ -5,7 +5,8 @@
 This crate defines the `IdentityMap` and `IdentitySet` as analogues to the standard library's `HashMap` and `HashSet`.
 Contrary to the standard library, however, keys are in the identity collections transformed as if by using [the identity function](https://en.wikipedia.org/wiki/Identity_function/).
 
-Using the identity function has the downside of making tables larger in size (depending on the key type), but does also allow for making the very same tables non-collidable (depending on the key's `PartialEq` implementation).
+Using the identity function *may* make tables larger in size (depending on the key type), but does also allow for making the very same tables non-collidable.
+The collections provided by this crate are ordered and required keys implementing `Ord` (as well as `Eq`).
 
 ## Copyright & License.
 

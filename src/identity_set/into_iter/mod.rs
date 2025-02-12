@@ -32,89 +32,54 @@ use crate::identity_set::IdentitySet;
 use core::fmt::{self, Debug, Formatter};
 use allocator_api2::alloc::{Allocator, Global};
 use core::iter::FusedIterator;
-use core::ptr::{self, drop_in_place};
+use core::ptr;
 
 /// Owning identity set iterator.
 #[must_use]
 #[repr(transparent)]
 #[derive(Clone, Default)]
-pub struct IntoIter<K, A: Allocator = Global> {
-	iter: identity_map::IntoIter<K, (), A>,
+pub struct IntoIter<T, A: Allocator = Global> {
+	iter: identity_map::IntoIter<T, (), A>,
 }
 
-impl<K, A: Allocator> IntoIter<K, A> {
+impl<T, A: Allocator> IntoIter<T, A> {
 	/// Constructs a new, owning identity set iterator.
 	///
 	/// # Safety
 	///
 	/// The provided, raw identity set must be initialised.
 	#[inline(always)]
-	pub(crate) fn new(set: IdentitySet<K, A>) -> Self {
-		let map = set.into_identity_map();
-
-		let iter = identity_map::IntoIter::new(map);
+	pub(crate) fn new(set: IdentitySet<T, A>) -> Self {
+		let iter = set.into_map().into_iter();
 		Self { iter }
 	}
 
-	/// Gets a pointer to the first key/value pairs.
+	/// Gets a slice of the key-value pairs.
 	#[inline(always)]
-	#[must_use]
-	pub fn as_ptr(&self) -> *const K {
-		// SAFETY: `(K, ())` is transparent to `K`.
-		self.iter.as_ptr() as *const K
-	}
+	pub(crate) fn as_slice(&self) -> &[T] {
+		let ptr = ptr::from_ref(self.iter.as_slice()) as *const [T];
 
-	/// Gets a mutable pointer to the first key/value pairs.
-	#[inline(always)]
-	#[must_use]
-	pub fn as_mut_ptr(&mut self) -> *mut K {
-		// SAFETY: `(K, ())` is transparent to `K`.
-		self.iter.as_mut_ptr() as *mut K
-	}
-
-	/// Gets a slice of the key/value pairs.
-	#[inline(always)]
-	#[must_use]
-	pub fn as_slice(&self) -> &[K] {
-		// SAFETY: `(K, ())` is transparent to `K`.
-		unsafe { &*(&raw const *self.iter.as_slice() as *const [K]) }
-	}
-
-	/// Gets a mutable slice of the key/value pairs.
-	#[inline(always)]
-	#[must_use]
-	pub fn as_mut_slice(&mut self) -> &mut [K] {
-		// SAFETY: `(K, ())` is transparent to `K`.
-		unsafe { &mut *(&raw mut *self.iter.as_mut_slice() as *mut [K]) }
+		// SAFETY: `(T, ())` is transparent to `T`.
+		unsafe { &*ptr }
 	}
 }
 
-impl<K, A> Debug for IntoIter<K, A>
+impl<T, A> Debug for IntoIter<T, A>
 where
-	K: Debug,
+	T: Debug,
 	A: Allocator,
 {
 	#[inline(always)]
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		f
-			.debug_tuple("IterMut")
+			.debug_tuple("IntoIter")
 			.field(&self.as_slice())
 			.finish()
 	}
 }
 
-impl<K, A: Allocator> Drop for IntoIter<K, A> {
-	#[inline(always)]
-	fn drop(&mut self) {
-		// Drop all items that are still alive.
-
-		let remaining = ptr::from_mut(self.as_mut_slice());
-		unsafe { drop_in_place(remaining) };
-	}
-}
-
-impl<K, A: Allocator> Iterator for IntoIter<K, A> {
-	type Item = K;
+impl<T, A: Allocator> Iterator for IntoIter<T, A> {
+	type Item = T;
 
 	#[inline(always)]
 	fn next(&mut self) -> Option<Self::Item> {
@@ -127,13 +92,13 @@ impl<K, A: Allocator> Iterator for IntoIter<K, A> {
 	}
 }
 
-impl<K, A: Allocator> DoubleEndedIterator for IntoIter<K, A> {
+impl<T, A: Allocator> DoubleEndedIterator for IntoIter<T, A> {
 	#[inline(always)]
 	fn next_back(&mut self) -> Option<Self::Item> {
 		self.iter.next_back().map(|(k, _)| k)
 	}
 }
 
-impl<K, A: Allocator> ExactSizeIterator for IntoIter<K, A> { }
+impl<T, A: Allocator> ExactSizeIterator for IntoIter<T, A> { }
 
-impl<K, A: Allocator> FusedIterator for IntoIter<K, A> { }
+impl<T, A: Allocator> FusedIterator for IntoIter<T, A> { }

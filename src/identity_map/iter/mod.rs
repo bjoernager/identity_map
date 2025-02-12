@@ -26,52 +26,33 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use crate::identity_map::{IdentityMap, RawIter};
+use crate::identity_map::IdentityMap;
 
 use allocator_api2::alloc::Allocator;
 use core::fmt::{self, Debug, Formatter};
 use core::iter::FusedIterator;
-use core::marker::PhantomData;
-use core::mem::transmute;
-use core::ptr;
+use core::slice;
 
 /// Borrowing identity map iterator.
 #[must_use]
-#[repr(transparent)]
 #[derive(Clone, Default)]
 pub struct Iter<'a, K, V> {
-	raw: RawIter<K, V>,
-
-	_buf: PhantomData<&'a [(K, V)]>,
+	iter: slice::Iter<'a, (K, V)>,
 }
 
 impl<'a, K, V> Iter<'a, K, V> {
 	/// Constructs a new, borrowing identity map iterator.
 	#[inline(always)]
-	pub(crate) fn new<A: Allocator>(map: &IdentityMap<K, V, A>) -> Self {
-		let buf = ptr::from_ref(map.as_slice());
-
-		// SAFETY: References are always non-null and ini-
-		// tialised at their destination.
-		let raw = unsafe { RawIter::new(buf.cast_mut()) };
-
-		Self { raw, _buf: PhantomData, }
+	pub(crate) fn new<A: Allocator>(map: &'a IdentityMap<K, V, A>) -> Self {
+		let iter = map.as_slice().iter();
+		Self { iter }
 	}
 
-	/// Gets a pointer to the first key/value pairs.
+	/// Gets a slice of the key-value pairs.
 	#[inline(always)]
 	#[must_use]
-	pub fn as_ptr(&self) -> *const (K, V) {
-		self.raw.as_ptr()
-	}
-
-	/// Gets a slice of the key/value pairs.
-	#[inline(always)]
-	#[must_use]
-	pub fn as_slice(&self) -> &'a [(K, V)] {
-		// SAFETY: We guarantee that the lifetime is con-
-		// tained.
-		unsafe { &*self.raw.as_slice() }
+	pub(crate) fn as_slice(&self) -> &[(K, V)] {
+		self.iter.as_slice()
 	}
 }
 
@@ -84,7 +65,7 @@ where
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		f
 			.debug_tuple("Iter")
-			.field(&self.as_slice())
+			.field(&self.iter.as_slice())
 			.finish()
 	}
 }
@@ -92,10 +73,7 @@ where
 impl<K, V> DoubleEndedIterator for Iter<'_, K, V> {
 	#[inline(always)]
 	fn next_back(&mut self) -> Option<Self::Item> {
-		// SAFETY: We guarantee that items are ini-
-		// tialised, and `Option<&(K, V)>` is transparent
-		// to `Option<*const (K, V)>`.
-		unsafe { transmute(self.raw.next_back()) }
+		self.iter.next_back()
 	}
 }
 
@@ -108,27 +86,11 @@ impl<'a, K, V> Iterator for Iter<'a, K, V> {
 
 	#[inline(always)]
 	fn next(&mut self) -> Option<Self::Item> {
-		// SAFETY: We guarantee that items are ini-
-		// tialised, and `Option<&(K, V)>` is transparent
-		// to `Option<*const (K, V)>`.
-		unsafe { transmute(self.raw.next()) }
+		self.iter.next()
 	}
 
 	#[inline(always)]
 	fn size_hint(&self) -> (usize, Option<usize>) {
-		self.raw.size_hint()
+		self.iter.size_hint()
 	}
 }
-// SAFETY: `Sync` guarantees that the type can also
-// be sent.
-unsafe impl<K, V> Send for Iter<'_, K, V>
-where
-	K: Sync,
-	V: Sync,
-{ }
-
-unsafe impl<K, V> Sync for Iter<'_, K, V>
-where
-	K: Sync,
-	V: Sync,
-{ }

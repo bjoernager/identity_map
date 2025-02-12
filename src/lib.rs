@@ -28,10 +28,11 @@
 
 //! `identity_map` is a Rust crate for mapping keys with associated values.
 //!
-//! This crate defines the [`IdentityMap`](identity_map::IdentityMap) and [`IdentitySet`](identity_set::IdentitySet) as analogues to the standard library's [`HashMap`](std::collections::HashMap) and [`HashSet`](std::collections::HashSet).
+//! This crate defines the [`IdentityMap`] and [`IdentitySet`] as analogues to the standard library's [`HashMap`](std::collections::HashMap) and [`HashSet`](std::collections::HashSet).
 //! Contrary to the standard library, however, keys are in the identity collections transformed as if by using [the identity function](https://en.wikipedia.org/wiki/Identity_function/).
 //!
-//! Using the identity function has the downside of making tables larger in size (depending on the key type), but does also allow for making the very same tables non-collidable (depending on the key's [`PartialEq`] implementation).
+//! Using the identity function *may* make tables larger in size (depending on the key type), but does also allow for making the very same tables non-collidable.
+//! The collections provided by this crate are ordered and required keys implementing [`Ord`] (as well as [`Eq`]).
 //!
 //! # Copyright & License.
 //!
@@ -45,7 +46,10 @@
 
 #![no_std]
 
+#![cfg_attr(feature = "allocator_api", feature(allocator_api))]
+
 #![warn(missing_docs)]
+#![forbid(rust_2024_compatibility)]
 
 extern crate alloc;
 
@@ -65,3 +69,9 @@ pub(crate) use use_mod;
 
 pub mod identity_map;
 pub mod identity_set;
+
+#[doc(inline)]
+pub use crate::identity_map::IdentityMap;
+
+#[doc(inline)]
+pub use crate::identity_set::IdentitySet;

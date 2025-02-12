@@ -28,7 +28,7 @@
 
 [package]
 name          = "identity_map"
-version       = "0.2.0"
+version       = "0.3.0"
 authors       = ["Gabriel Bjørnager Jensen"]
 edition       = "2021"
 rust-version  = "1.82"
@@ -43,7 +43,7 @@ license       = "MIT"
 allocator-api2 = "0.2"
 
 [features]
-allocator_api = []
+allocator_api = ["allocator-api2/nightly"]
 
 [workspace.lints.clippy]
 alloc_instead_of_core              = "forbid"

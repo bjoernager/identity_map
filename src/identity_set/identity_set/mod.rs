@@ -33,24 +33,27 @@ use crate::identity_map::IdentityMap;
 use crate::identity_set::{IntoIter, Iter, IterMut};
 
 use allocator_api2::alloc::{Allocator, Global};
+use core::borrow::Borrow;
+use core::fmt::{self, Debug, Formatter};
 use core::mem::ManuallyDrop;
 
-/// An allocated identity set.
+/// An ordered identity set.
 ///
-/// This set associates specific keys with specific values.
+/// This set records a list of keys wherein each key is unique.
+///
 /// Unlike other sets such as [`HashSet`](std::collections::HashSet), this type only transforms keys as if the [`identity`](core::convert::identity) function was used.
 #[repr(transparent)]
-#[derive(Clone, Default, Hash)]
-pub struct IdentitySet<K, A: Allocator = Global> {
-	map: IdentityMap<K, (), A>,
+#[derive(Clone, Default, Eq, Hash, PartialEq)]
+pub struct IdentitySet<T, A: Allocator = Global> {
+	map: IdentityMap<T, (), A>,
 }
 
-impl<K> IdentitySet<K> {
+impl<T> IdentitySet<T> {
 	/// Constructs a new, empty identity set.
 	#[inline(always)]
 	#[must_use]
 	#[track_caller]
-	pub fn new() -> Self {
+	pub const fn new() -> Self {
 		Self::new_in(Global)
 	}
 
@@ -58,44 +61,35 @@ impl<K> IdentitySet<K> {
 	///
 	/// # Panics
 	///
-	/// If `[K; count]` could not be allocated using the global allocator, then this function will panic.
+	/// If `[T; cap]` could not be allocated using the global allocator, then this function will panic.
 	///
-	/// This function will also panic if `count` is greater than [`isize::MAX`].
+	/// This function will also panic if `cap` is greater than [`isize::MAX`].
 	#[inline(always)]
 	#[must_use]
 	#[track_caller]
-	pub fn with_capacity(count: usize) -> Self {
-		Self::with_capacity_in(count, Global)
+	pub fn with_capacity(cap: usize) -> Self {
+		Self::with_capacity_in(cap, Global)
 	}
 
 	/// Constructs a new identity set from raw parts.
 	///
 	/// # Safety
 	///
-	/// The provided parts must have been previously been deconstructed from another identity set.
+	/// See [`IdentityMap::from_raw_parts`].
 	#[inline(always)]
 	#[must_use]
 	#[track_caller]
-	pub unsafe fn from_raw_parts(ptr: *mut K, cap: usize, len: usize) -> Self {
+	pub unsafe fn from_raw_parts(ptr: *mut T, cap: usize, len: usize) -> Self {
 		unsafe { Self::from_raw_parts_in(ptr, cap, len, Global) }
-	}
-
-	/// Deconstructs the set into its raw parts.
-	#[inline(always)]
-	#[must_use]
-	pub fn into_raw_parts(self) -> (*mut K, usize, usize) {
-		let (ptr, cap, len, _alloc) = self.into_raw_parts_with_allow();
-
-		(ptr, cap, len)
 	}
 }
 
-impl<K, A: Allocator> IdentitySet<K, A> {
+impl<T, A: Allocator> IdentitySet<T, A> {
 	/// Constructs a new, empty identity set with a specific allocator.
 	#[inline(always)]
 	#[must_use]
 	#[track_caller]
-	pub fn new_in(alloc: A) -> Self {
+	pub const fn new_in(alloc: A) -> Self {
 		let map = IdentityMap::new_in(alloc);
 		Self { map }
 	}
@@ -104,14 +98,14 @@ impl<K, A: Allocator> IdentitySet<K, A> {
 	///
 	/// # Panics
 	///
-	/// If `[K; count]` could not be allocated with the given allocator, then this function will panic.
+	/// If `[T; cap]` could not be allocated with the given allocator, then this function will panic.
 	///
-	/// This function will also panic if `count` is greater than [`isize::MAX`].
+	/// This function will also panic if `cap` is greater than [`isize::MAX`].
 	#[inline(always)]
 	#[must_use]
 	#[track_caller]
-	pub fn with_capacity_in(count: usize, alloc: A) -> Self {
-		let map = IdentityMap::with_capacity_in(count, alloc);
+	pub fn with_capacity_in(cap: usize, alloc: A) -> Self {
+		let map = IdentityMap::with_capacity_in(cap, alloc);
 		Self { map }
 	}
 
@@ -119,18 +113,18 @@ impl<K, A: Allocator> IdentitySet<K, A> {
 	///
 	/// # Safety
 	///
-	/// The provided parts must have been previously been deconstructed from another identity set.
+	/// See [`IdentityMap::from_raw_parts_in`].
 	#[inline(always)]
 	#[must_use]
 	#[track_caller]
 	pub unsafe fn from_raw_parts_in(
-		ptr:   *mut K,
+		ptr:   *mut T,
 		cap:   usize,
 		len:   usize,
 		alloc: A,
 	) -> Self {
-		// SAFETY: `(K, ())` is transparent to `K`.
-		let ptr = ptr as *mut (K, ());
+		// SAFETY: `(T, ())` is transparent to `T`.
+		let ptr = ptr as *mut (T, ());
 
 		// SAFETY: Caller guarantees the validity of the
 		// parts.
@@ -160,13 +154,13 @@ impl<K, A: Allocator> IdentitySet<K, A> {
 
 	/// Gets a iterator of the containedf key-value pairs.
 	#[inline(always)]
-	pub fn iter(&self) -> Iter<K> {
+	pub fn iter(&self) -> Iter<T> {
 		Iter::new(self)
 	}
 
 	/// Gets a mutable iterator of the contained key-value pairs.
 	#[inline(always)]
-	pub fn iter_mut(&mut self) -> IterMut<K> {
+	pub fn iter_mut(&mut self) -> IterMut<T> {
 		IterMut::new(self)
 	}
 
@@ -190,7 +184,7 @@ impl<K, A: Allocator> IdentitySet<K, A> {
 	#[inline(always)]
 	#[must_use]
 	pub fn is_empty(&self) -> bool {
-		self.len() == 0x0
+		self.map.is_empty()
 	}
 
 	/// Gets a pointer to the set buffer.
@@ -198,9 +192,9 @@ impl<K, A: Allocator> IdentitySet<K, A> {
 	/// Note that this pointer may necessarily be dangling if the set isn't currently in an allocated state.
 	#[inline(always)]
 	#[must_use]
-	pub fn as_ptr(&self) -> *const K {
-		// SAFETY: `(K, ())` is transparent to `K`.
-		self.map.as_ptr() as *const K
+	pub fn as_ptr(&self) -> *const T {
+		// SAFETY: `(T, ())` is transparent to `T`.
+		self.map.as_ptr() as *const T
 	}
 
 	/// Gets a mutable pointer to the set buffer.
@@ -208,66 +202,52 @@ impl<K, A: Allocator> IdentitySet<K, A> {
 	/// Note that this pointer may necessarily be dangling if the set isn't currently in an allocated state.
 	#[inline(always)]
 	#[must_use]
-	pub fn as_mut_ptr(&mut self) -> *mut K {
-		// SAFETY: `(K, ())` is transparent to `K`.
-		self.map.as_mut_ptr() as *mut K
+	pub fn as_mut_ptr(&mut self) -> *mut T {
+		// SAFETY: `(T, ())` is transparent to `T`.
+		self.map.as_mut_ptr() as *mut T
 	}
 
-	/// Gets a slice over the set's key/value pairs.
+	/// Gets a slice over the set's key-value pairs.
 	#[inline(always)]
 	#[must_use]
-	pub fn as_slice(&self) -> &[K] {
-		// SAFETY: `(K, ())` is transparent to `K`.
-		unsafe { &*(&raw const *self.map.as_slice() as *const [K]) }
+	pub fn as_slice(&self) -> &[T] {
+		// SAFETY: `(T, ())` is transparent to `T`.
+		unsafe { &*(&raw const *self.map.as_slice() as *const [T]) }
 	}
 
-	/// Gets a mutable slice over the set's key/value pairs.
+	/// Gets a mutable slice over the set's key-value pairs.
 	#[inline(always)]
 	#[must_use]
-	pub fn as_mut_slice(&mut self) -> &mut [K] {
-		// SAFETY: `(K, ())` is transparent to `K`.
-		unsafe { &mut *(&raw mut *self.map.as_mut_slice() as *mut [K]) }
+	pub fn as_mut_slice(&mut self) -> &mut [T] {
+		// SAFETY: `(T, ())` is transparent to `T`.
+		unsafe { &mut *(&raw mut *self.map.as_mut_slice() as *mut [T]) }
 	}
 
+	/// Borrows the set as a map.
 	#[inline(always)]
 	#[must_use]
-	pub(crate) fn as_identity_map(&self) -> &IdentityMap<K, (), A> {
+	pub(crate) fn as_map(&self) -> &IdentityMap<T, (), A> {
 		&self.map
 	}
 
+	/// Mutably borrows the set as a map.
 	#[inline(always)]
 	#[must_use]
-	pub(crate) fn as_mut_identity_map(&mut self) -> &mut IdentityMap<K, (), A> {
+	pub(crate) fn as_mut_map(&mut self) -> &mut IdentityMap<T, (), A> {
 		&mut self.map
 	}
 
+	/// Converts the set into a map.
 	#[inline(always)]
 	#[must_use]
-	pub(crate) fn into_identity_map(self) -> IdentityMap<K, (), A> {
-		let this = ManuallyDrop::new(self);
-
-		// SAFETY: `map` is not used in `this` after this
-		// read as `this` does not implement `Drop`.
-		unsafe { (&raw const this.map).read() }
-	}
-
-	/// Deconstructs the set into its raw parts.
-	#[inline(always)]
-	#[must_use]
-	pub fn into_raw_parts_with_allow(self) -> (*mut K, usize, usize, A) {
-		let map = self.into_identity_map();
-		let (ptr, cap, len, alloc) = map.into_raw_parts_with_allow();
-
-		// SAFETY: `(K, ())` is transparent to `K`.
-		let ptr = ptr as *mut K;
-
-		(ptr, cap, len, alloc)
+	pub(crate) fn into_map(self) -> IdentityMap<T, (), A> {
+		self.map
 	}
 }
 
-impl<K, A> IdentitySet<K, A>
+impl<T, A> IdentitySet<T, A>
 where
-	K: Eq,
+	T: Eq + Ord,
 	A: Allocator,
 {
 	/// Inserts a new key-value pair into the set.
@@ -280,7 +260,7 @@ where
 	/// If the set did not already hold `key` as a key and could not grow its buffer to accommodate the `key` & `value` pair, then this method will panic.
 	#[inline(always)]
 	#[track_caller]
-	pub fn insert(&mut self, key: K) -> bool {
+	pub fn insert(&mut self, key: T) -> bool {
 		self.map.insert(key, ()).is_some()
 	}
 
@@ -290,37 +270,52 @@ where
 	/// If no pair existed with the provided key, then this method will instead return a [`None`] instance.
 	#[inline(always)]
 	#[track_caller]
-	pub fn remove(&mut self, key: &K) -> bool {
+	pub fn remove(&mut self, key: &T) -> bool {
 		self.map.remove(key).is_some()
 	}
 
 	/// Checks if the set contains the specified key.
 	#[inline(always)]
 	#[must_use]
-	pub fn contains(&self, key: &K) -> bool {
-		self.map.get(key).is_some()
+	pub fn contains<U>(&self, key: &U) -> bool
+	where
+		T: Borrow<U>,
+		U: Eq + Ord + ?Sized,
+	{
+		self.map.contains_key(key)
 	}
 }
 
-impl<K, const N: usize> From<[K; N]> for IdentitySet<K> {
+impl<T, A> Debug for IdentitySet<T, A>
+where
+	T: Debug,
+	A: Allocator,
+{
 	#[inline(always)]
-	fn from(value: [K; N]) -> Self {
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+		Debug::fmt(self.as_slice(), f)
+	}
+}
+
+impl<T: Ord, const N: usize> From<[T; N]> for IdentitySet<T> {
+	#[inline(always)]
+	fn from(value: [T; N]) -> Self {
 		let value = ManuallyDrop::new(value);
 
-		// SAFETY: `(K, ())` is transparent to `K`. The
+		// SAFETY: `(T, ())` is transparent to `T`. The
 		// previous `value` is also not used at all after
 		// this transmutation.
-		let value = unsafe { (&raw const value).cast::<[(K, ()); N]>().read() };
+		let value = unsafe { (&raw const value).cast::<[(T, ()); N]>().read() };
 
 		let map = value.into();
 		Self { map }
 	}
 }
 
-impl<K, A: Allocator> IntoIterator for IdentitySet<K, A> {
-	type Item = K;
+impl<T, A: Allocator> IntoIterator for IdentitySet<T, A> {
+	type Item = T;
 
-	type IntoIter = IntoIter<K, A>;
+	type IntoIter = IntoIter<T, A>;
 
 	#[inline(always)]
 	fn into_iter(self) -> Self::IntoIter {
@@ -328,10 +323,10 @@ impl<K, A: Allocator> IntoIterator for IdentitySet<K, A> {
 	}
 }
 
-impl<'a, K, A: Allocator> IntoIterator for &'a IdentitySet<K, A> {
-	type Item = &'a K;
+impl<'a, T, A: Allocator> IntoIterator for &'a IdentitySet<T, A> {
+	type Item = &'a T;
 
-	type IntoIter = Iter<'a, K>;
+	type IntoIter = Iter<'a, T>;
 
 	#[inline(always)]
 	fn into_iter(self) -> Self::IntoIter {
@@ -339,10 +334,10 @@ impl<'a, K, A: Allocator> IntoIterator for &'a IdentitySet<K, A> {
 	}
 }
 
-impl<'a, K, A: Allocator> IntoIterator for &'a mut IdentitySet<K, A> {
-	type Item = &'a mut K;
+impl<'a, T, A: Allocator> IntoIterator for &'a mut IdentitySet<T, A> {
+	type Item = &'a mut T;
 
-	type IntoIter = IterMut<'a, K>;
+	type IntoIter = IterMut<'a, T>;
 
 	#[inline(always)]
 	fn into_iter(self) -> Self::IntoIter {

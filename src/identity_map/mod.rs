@@ -30,9 +30,6 @@
 
 use crate::use_mod;
 
-use_mod!(pub(crate) raw_identity_map);
-use_mod!(pub(crate) raw_iter);
-
 use_mod!(pub identity_map);
 use_mod!(pub into_iter);
 use_mod!(pub iter);

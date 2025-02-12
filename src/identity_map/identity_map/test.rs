@@ -26,7 +26,7 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use crate::identity_map::IdentityMap;
+use crate::IdentityMap;
 
 use core::sync::atomic::{AtomicU8, Ordering};
 
@@ -46,54 +46,54 @@ fn test_identity_map() {
 	assert!(map.capacity() >= 0x100);
 	assert!(map.len() == 0x0);
 	assert!(map.is_empty());
-	assert!(!map.contains(&u32::MIN));
-	assert!(!map.contains(&u32::MAX));
-	assert!(!map.contains(&(i32::MAX as u32)));
+	assert!(!map.contains_key(&u32::MIN));
+	assert!(!map.contains_key(&u32::MAX));
+	assert!(!map.contains_key(&(i32::MAX as u32)));
 
 	assert_eq!(map.insert(u32::MIN, u32::MAX), None);
 
 	assert!(map.capacity() >= 0x100);
 	assert!(map.len() == 0x1);
 	assert!(!map.is_empty());
-	assert!(map.contains(&u32::MIN));
-	assert!(!map.contains(&u32::MAX));
-	assert!(!map.contains(&(i32::MAX as u32)));
+	assert!(map.contains_key(&u32::MIN));
+	assert!(!map.contains_key(&u32::MAX));
+	assert!(!map.contains_key(&(i32::MAX as u32)));
 
 	assert_eq!(map.insert(u32::MAX, u32::MIN), None);
 
 	assert!(map.capacity() >= 0x100);
 	assert!(map.len() == 0x2);
 	assert!(!map.is_empty());
-	assert!(map.contains(&u32::MIN));
-	assert!(map.contains(&u32::MAX));
-	assert!(!map.contains(&(i32::MAX as u32)));
+	assert!(map.contains_key(&u32::MIN));
+	assert!(map.contains_key(&u32::MAX));
+	assert!(!map.contains_key(&(i32::MAX as u32)));
 
 	assert_eq!(map.remove(&u32::MIN), Some(u32::MAX));
 
 	assert!(map.capacity() >= 0x100);
 	assert!(map.len() == 0x1);
 	assert!(!map.is_empty());
-	assert!(!map.contains(&u32::MIN));
-	assert!(map.contains(&u32::MAX));
-	assert!(!map.contains(&(i32::MAX as u32)));
+	assert!(!map.contains_key(&u32::MIN));
+	assert!(map.contains_key(&u32::MAX));
+	assert!(!map.contains_key(&(i32::MAX as u32)));
 
 	assert_eq!(map.remove(&u32::MAX), Some(u32::MIN));
 
 	assert!(map.capacity() >= 0x100);
 	assert!(map.len() == 0x0);
 	assert!(map.is_empty());
-	assert!(!map.contains(&u32::MIN));
-	assert!(!map.contains(&u32::MAX));
-	assert!(!map.contains(&(i32::MAX as u32)));
+	assert!(!map.contains_key(&u32::MIN));
+	assert!(!map.contains_key(&u32::MAX));
+	assert!(!map.contains_key(&(i32::MAX as u32)));
 
 	assert_eq!(map.remove(&u32::MIN), None);
 
 	assert!(map.capacity() >= 0x100);
 	assert!(map.len() == 0x0);
 	assert!(map.is_empty());
-	assert!(!map.contains(&u32::MIN));
-	assert!(!map.contains(&u32::MAX));
-	assert!(!map.contains(&(i32::MAX as u32)));
+	assert!(!map.contains_key(&u32::MIN));
+	assert!(!map.contains_key(&u32::MAX));
+	assert!(!map.contains_key(&(i32::MAX as u32)));
 }
 
 #[test]
@@ -115,7 +115,7 @@ fn test_identity_map_clone() {
 fn test_identity_map_drop() {
 	static COUNTER: AtomicU8 = AtomicU8::new(0x0);
 
-	#[derive(Eq, PartialEq)]
+	#[derive(Debug, Eq, Ord, PartialEq, PartialOrd)]
 	struct Foo;
 
 	impl Drop for Foo {
@@ -138,7 +138,7 @@ fn test_identity_map_drop() {
 
 #[test]
 fn test_identity_map_from_array() {
-	let data = [(false, true), (true, false)];
+	let data = [(true, false), (false, true)];
 
 	let map = IdentityMap::from(data);
 
@@ -156,22 +156,22 @@ fn test_identity_map_iter() {
 
 	let mut iter = map.iter();
 
-	assert_eq!(iter.next(), Some(&(0xFF, 0x00)));
-	assert_eq!(iter.next(), Some(&(0x7F, 0x80)));
 	assert_eq!(iter.next(), Some(&(0x00, 0xFF)));
+	assert_eq!(iter.next(), Some(&(0x7F, 0x80)));
+	assert_eq!(iter.next(), Some(&(0xFF, 0x00)));
 	assert_eq!(iter.next(), None);
 
 	let mut iter = map.iter_mut();
 
-	assert_eq!(iter.next(), Some(&mut (0xFF, 0x00)));
-	assert_eq!(iter.next(), Some(&mut (0x7F, 0x80)));
 	assert_eq!(iter.next(), Some(&mut (0x00, 0xFF)));
+	assert_eq!(iter.next(), Some(&mut (0x7F, 0x80)));
+	assert_eq!(iter.next(), Some(&mut (0xFF, 0x00)));
 	assert_eq!(iter.next(), None);
 
 	let mut iter = map.into_iter();
 
-	assert_eq!(iter.next(), Some((0xFF, 0x00)));
-	assert_eq!(iter.next(), Some((0x7F, 0x80)));
 	assert_eq!(iter.next(), Some((0x00, 0xFF)));
+	assert_eq!(iter.next(), Some((0x7F, 0x80)));
+	assert_eq!(iter.next(), Some((0xFF, 0x00)));
 	assert_eq!(iter.next(), None);
 }

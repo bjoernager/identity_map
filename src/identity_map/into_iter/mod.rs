@@ -26,19 +26,18 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use crate::identity_map::{IdentityMap, RawIdentityMap};
+use crate::identity_map::IdentityMap;
 
 use allocator_api2::alloc::{Allocator, Global};
+use allocator_api2::vec::{self, Vec};
 use core::fmt::{self, Debug, Formatter};
 use core::iter::FusedIterator;
-use core::ptr::{self, drop_in_place};
 
-/// Owning identity map iterator.
+ /// Owning identity map iterator.
 #[must_use]
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct IntoIter<K, V, A: Allocator = Global> {
-	pos: usize,
-	raw: RawIdentityMap<K, V, A>,
+	iter: vec::IntoIter<(K, V), A>,
 }
 
 impl<K, V, A: Allocator> IntoIter<K, V, A> {
@@ -49,40 +48,15 @@ impl<K, V, A: Allocator> IntoIter<K, V, A> {
 	/// The provided, raw identity map must be initialised.
 	#[inline(always)]
 	pub(crate) fn new(map: IdentityMap<K, V, A>) -> Self {
-		let raw = map.into_raw_identity_map();
-
-		Self {
-			pos: Default::default(),
-			raw,
-		}
+		let iter = map.into_vec().into_iter();
+		Self { iter }
 	}
 
-	/// Gets a pointer to the first key/value pairs.
+	/// Gets a slice of the key-value pairs.
 	#[inline(always)]
 	#[must_use]
-	pub fn as_ptr(&self) -> *const (K, V) {
-		unsafe { self.raw.as_ptr().add(self.pos) }
-	}
-
-	/// Gets a mutable pointer to the first key/value pairs.
-	#[inline(always)]
-	#[must_use]
-	pub fn as_mut_ptr(&mut self) -> *mut (K, V) {
-		unsafe { self.raw.as_mut_ptr().add(self.pos) }
-	}
-
-	/// Gets a slice of the key/value pairs.
-	#[inline(always)]
-	#[must_use]
-	pub fn as_slice(&self) -> &[(K, V)] {
-		unsafe { &*self.raw.as_slice() }
-	}
-
-	/// Gets a mutable slice of the key/value pairs.
-	#[inline(always)]
-	#[must_use]
-	pub fn as_mut_slice(&mut self) -> &mut [(K, V)] {
-		unsafe { &mut *self.raw.as_mut_slice() }
+	pub(crate) fn as_slice(&self) -> &[(K, V)] {
+		self.iter.as_slice()
 	}
 }
 
@@ -95,75 +69,40 @@ where
 	#[inline(always)]
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		f
-			.debug_tuple("IterMut")
+			.debug_tuple("IntoIter")
 			.field(&self.as_slice())
 			.finish()
 	}
 }
 
-impl<K, V, A: Allocator> Drop for IntoIter<K, V, A> {
+impl<K, V, A: Allocator + Default> Default for IntoIter<K, V, A> {
 	#[inline(always)]
-	fn drop(&mut self) {
-		// Drop all items that are still alive.
+	fn default() -> Self {
+		let alloc = Default::default();
 
-		let remaining = ptr::from_mut(self.as_mut_slice());
-		unsafe { drop_in_place(remaining) };
+		let iter = Vec::new_in(alloc).into_iter();
+		Self { iter }
 	}
 }
 
 impl<K, V, A: Allocator> Iterator for IntoIter<K, V, A> {
 	type Item = (K, V);
 
-	#[inline]
+	#[inline(always)]
 	fn next(&mut self) -> Option<Self::Item> {
-		let mut len = self.len();
-
-		if len == 0x0 { return None };
-
-		let item = unsafe {
-			let ptr = self
-				.raw
-				.as_ptr()
-				.add(self.pos);
-
-			ptr.read()
-		};
-
-		self.pos += 0x1;
-		len      -= 0x1;
-
-		unsafe { self.raw.set_len(len) };
-
-		Some(item)
+		self.iter.next()
 	}
 
 	#[inline(always)]
 	fn size_hint(&self) -> (usize, Option<usize>) {
-		let size = self.raw.len();
-		(size, Some(size))
+		self.iter.size_hint()
 	}
 }
 
 impl<K, V, A: Allocator> DoubleEndedIterator for IntoIter<K, V, A> {
+	#[inline(always)]
 	fn next_back(&mut self) -> Option<Self::Item> {
-		let mut len = self.len();
-
-		if len == 0x0 { return None };
-
-		let item = unsafe {
-			let ptr = self
-				.raw
-				.as_ptr()
-				.add(self.pos)
-				.add(len);
-
-			ptr.read()
-		};
-
-		len -= 0x1;
-		unsafe { self.raw.set_len(len) };
-
-		Some(item)
+		self.iter.next_back()
 	}
 }
 

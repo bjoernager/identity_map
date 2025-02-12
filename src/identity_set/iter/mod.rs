@@ -32,60 +32,54 @@ use crate::identity_set::IdentitySet;
 use allocator_api2::alloc::Allocator;
 use core::fmt::{self, Debug, Formatter};
 use core::iter::FusedIterator;
+use core::ptr;
 
 /// Borrowing identity set iterator.
 #[must_use]
 #[repr(transparent)]
 #[derive(Clone, Default)]
-pub struct Iter<'a, K> {
-	iter: identity_map::Iter<'a, K, ()>,
+pub struct Iter<'a, T> {
+	iter: identity_map::Iter<'a, T, ()>,
 }
 
-impl<'a, K> Iter<'a, K> {
+impl<'a, T> Iter<'a, T> {
 	/// Constructs a new, borrowing identity set iterator.
 	#[inline(always)]
-	pub(crate) fn new<A: Allocator>(set: &IdentitySet<K, A>) -> Self {
-		let iter = identity_map::Iter::new(set.as_identity_map());
+	pub(crate) fn new<A: Allocator>(set: &'a IdentitySet<T, A>) -> Self {
+		let iter = set.as_map().iter();
 		Self { iter }
 	}
 
-	/// Gets a pointer to the first key/value pairs.
+	/// Gets a slice of the key-value pairs.
 	#[inline(always)]
-	#[must_use]
-	pub fn as_ptr(&self) -> *const K {
-		// SAFETY: `(K, ())` is transparent to `K`.
-		self.iter.as_ptr() as *const K
-	}
+	pub(crate) fn as_slice(&self) -> &[T] {
+		let ptr = ptr::from_ref(self.iter.as_slice()) as *const [T];
 
-	/// Gets a slice of the key/value pairs.
-	#[inline(always)]
-	#[must_use]
-	pub fn as_slice(&self) -> &'a [K] {
-		// SAFETY: `(K, ())` is transparent to `K`.
-		unsafe { &*(&raw const *self.iter.as_slice() as *const [K]) }
+		// SAFETY: `(T, ())` is transparent to `T`.
+		unsafe { &*ptr }
 	}
 }
 
-impl<K: Debug> Debug for Iter<'_, K> {
+impl<T: Debug> Debug for Iter<'_, T> {
 	#[inline(always)]
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		f.debug_tuple("Iter").field(&self.as_slice()).finish()
 	}
 }
 
-impl<K> DoubleEndedIterator for Iter<'_, K> {
+impl<T> DoubleEndedIterator for Iter<'_, T> {
 	#[inline(always)]
 	fn next_back(&mut self) -> Option<Self::Item> {
 		self.iter.next_back().map(|(k, _)| k)
 	}
 }
 
-impl<K> ExactSizeIterator for Iter<'_, K> {}
+impl<T> ExactSizeIterator for Iter<'_, T> {}
 
-impl<K> FusedIterator for Iter<'_, K> {}
+impl<T> FusedIterator for Iter<'_, T> {}
 
-impl<'a, K> Iterator for Iter<'a, K> {
-	type Item = &'a K;
+impl<'a, T> Iterator for Iter<'a, T> {
+	type Item = &'a T;
 
 	#[inline(always)]
 	fn next(&mut self) -> Option<Self::Item> {
@@ -97,9 +91,3 @@ impl<'a, K> Iterator for Iter<'a, K> {
 		self.iter.size_hint()
 	}
 }
-
-// SAFETY: `Sync` guarantees that the type can also
-// be sent.
-unsafe impl<K: Sync> Send for Iter<'_, K> { }
-
-unsafe impl<K: Sync> Sync for Iter<'_, K> { }

@@ -3,6 +3,27 @@
 This is the changelog of [identity_map](https://crates.io/crates/identity_map/).
 See `README.md` for more information.
 
+## 0.3.0
+
+* Require `Eq + Ord` instead of just `Eq` for `IdentityMap` and `IdentitySet`
+* Implement `Eq` and `PartialEq` for `IdentityMap` and `IdentitySet`
+* Update `track_caller` usage
+* Expose `IdentityMap` and `IdentitySet` in the root module
+* Mark `IdentityMap::{new, new_in}` and `IdentitySet::{new, new_in}` with `const`
+* Update tests
+* Add `allocator_api` feature
+* Reorder parameters for `from_raw_parts` and `from_raw_parts_in` constructors
+* Internally rewrite types
+* Remove `as_ptr`, `as_slice`, `as_mut_ptr`, and `as_mut_slice` methods from all iterators
+* Remove `into_raw_parts` and `into_raw_parts_with_alloc` destructors
+* Update docs
+* Update syntax for querying keys
+* Rename `IdentityMap::contains` to `contains_key`
+* Implement `Debug` for `IdentityMap` and `IdentitySet`
+* Fix `<IdentitySet<K, V> as From<[(K, V)]>::from` not sorting input array
+* Update lints
+* Update readme
+
 ## 0.2.0
 
 * Implement `From<{[(K, V); N]}>` for `IdentityMap<K, V>`
