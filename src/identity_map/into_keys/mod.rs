@@ -26,51 +26,29 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use crate::identity_map::IdentityMap;
+use crate::identity_map::{IdentityMap, IntoIter};
 
 use allocator_api2::alloc::Allocator;
-use core::fmt::{self, Debug, Formatter};
 use core::iter::FusedIterator;
-use core::slice;
 
-/// Borrowing identity map iterator.
+/// Owning identity map keys iterator.
 #[must_use]
-#[derive(Clone)]
-pub struct Iter<'a, K, V> {
-	iter: slice::Iter<'a, (K, V)>,
+#[repr(transparent)]
+#[derive(Clone, Debug)]
+pub struct IntoKeys<K, V, A: Allocator> {
+	iter: IntoIter<K, V, A>,
 }
 
-impl<'a, K, V> Iter<'a, K, V> {
-	/// Constructs a new, borrowing identity map iterator.
+impl<K, V, A: Allocator> IntoKeys<K, V, A> {
+	/// Constructs a new, owning identity map keys iterator.
 	#[inline(always)]
-	pub(crate) fn new<A: Allocator>(map: &'a IdentityMap<K, V, A>) -> Self {
-		let iter = map.as_slice().iter();
+	pub(crate) fn new(map: IdentityMap<K, V, A>) -> Self {
+		let iter = map.into_iter();
 		Self { iter }
 	}
-
-	/// Gets a slice of the key-value pairs.
-	#[inline(always)]
-	#[must_use]
-	pub(crate) fn as_slice(&self) -> &[(K, V)] {
-		self.iter.as_slice()
-	}
 }
 
-impl<K, V> Debug for Iter<'_, K, V>
-where
-	K: Debug,
-	V: Debug,
-{
-	#[inline(always)]
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-		f
-			.debug_tuple("Iter")
-			.field(&self.as_slice())
-			.finish()
-	}
-}
-
-impl<K, V> Default for Iter<'_, K, V> {
+impl<K, V, A: Allocator + Default> Default for IntoKeys<K, V, A> {
 	#[inline(always)]
 	fn default() -> Self {
 		let iter = Default::default();
@@ -78,23 +56,23 @@ impl<K, V> Default for Iter<'_, K, V> {
 	}
 }
 
-impl<K, V> DoubleEndedIterator for Iter<'_, K, V> {
+impl<K, V, A: Allocator> DoubleEndedIterator for IntoKeys<K, V, A> {
 	#[inline(always)]
 	fn next_back(&mut self) -> Option<Self::Item> {
-		self.iter.next_back()
+		self.iter.next_back().map(|(k, _)| k)
 	}
 }
 
-impl<K, V> ExactSizeIterator for Iter<'_, K, V> { }
+impl<K, V, A: Allocator> ExactSizeIterator for IntoKeys<K, V, A> { }
 
-impl<K, V> FusedIterator for Iter<'_, K, V> { }
+impl<K, V, A: Allocator> FusedIterator for IntoKeys<K, V, A> { }
 
-impl<'a, K, V> Iterator for Iter<'a, K, V> {
-	type Item = &'a (K, V);
+impl<K, V, A: Allocator> Iterator for IntoKeys<K, V, A> {
+	type Item = K;
 
 	#[inline(always)]
 	fn next(&mut self) -> Option<Self::Item> {
-		self.iter.next()
+		self.iter.next().map(|(k, _)| k)
 	}
 
 	#[inline(always)]

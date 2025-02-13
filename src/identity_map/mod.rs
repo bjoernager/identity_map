@@ -32,5 +32,10 @@ use crate::use_mod;
 
 use_mod!(pub identity_map);
 use_mod!(pub into_iter);
+use_mod!(pub into_keys);
+use_mod!(pub into_values);
 use_mod!(pub iter);
 use_mod!(pub iter_mut);
+use_mod!(pub keys);
+use_mod!(pub values);
+use_mod!(pub values_mut);

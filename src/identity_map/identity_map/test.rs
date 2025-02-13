@@ -138,21 +138,28 @@ fn test_identity_map_drop() {
 
 #[test]
 fn test_identity_map_from_array() {
-	let data = [(true, false), (false, true)];
+	let data0 = [(true, true), (true, false), (false, true), (false, false), (true, false), (false, true)];
+	let data1 = [(false, true), (true, false)];
 
-	let map = IdentityMap::from(data);
+	let map0: IdentityMap<_, _> = IdentityMap::from(data0);
+	let map1: IdentityMap<_, _> = IdentityMap::from(data1);
 
-	assert_eq!(map.get(&true),  Some(&false));
-	assert_eq!(map.get(&false), Some(&true));
+	assert_eq!(map0, map1);
+
+	assert_eq!(map0.get(&true),  Some(&false));
+	assert_eq!(map0.get(&false), Some(&true));
+
+	assert_eq!(map1.get(&true),  Some(&false));
+	assert_eq!(map1.get(&false), Some(&true));
 }
 
 #[test]
 fn test_identity_map_iter() {
-	let mut map = IdentityMap::<u8, u8>::new();
-
-	assert_eq!(map.insert(0xFF, 0x00), None);
-	assert_eq!(map.insert(0x7F, 0x80), None);
-	assert_eq!(map.insert(0x00, 0xFF), None);
+	let mut map = IdentityMap::<u8, u8>::from([
+		(0xFF, 0x00),
+		(0x7F, 0x80),
+		(0x00, 0xFF),
+	]);
 
 	let mut iter = map.iter();
 
@@ -168,10 +175,45 @@ fn test_identity_map_iter() {
 	assert_eq!(iter.next(), Some(&mut (0xFF, 0x00)));
 	assert_eq!(iter.next(), None);
 
-	let mut iter = map.into_iter();
+	let mut iter = map.keys();
+
+	assert_eq!(iter.next(), Some(&0x00));
+	assert_eq!(iter.next(), Some(&0x7F));
+	assert_eq!(iter.next(), Some(&0xFF));
+	assert_eq!(iter.next(), None);
+
+	let mut iter = map.values();
+
+	assert_eq!(iter.next(), Some(&0xFF));
+	assert_eq!(iter.next(), Some(&0x80));
+	assert_eq!(iter.next(), Some(&0x00));
+	assert_eq!(iter.next(), None);
+
+	let mut iter = map.values_mut();
+
+	assert_eq!(iter.next(), Some(&mut 0xFF));
+	assert_eq!(iter.next(), Some(&mut 0x80));
+	assert_eq!(iter.next(), Some(&mut 0x00));
+	assert_eq!(iter.next(), None);
+
+	let mut iter = map.clone().into_iter();
 
 	assert_eq!(iter.next(), Some((0x00, 0xFF)));
 	assert_eq!(iter.next(), Some((0x7F, 0x80)));
 	assert_eq!(iter.next(), Some((0xFF, 0x00)));
+	assert_eq!(iter.next(), None);
+
+	let mut iter = map.clone().into_keys();
+
+	assert_eq!(iter.next(), Some(0x00));
+	assert_eq!(iter.next(), Some(0x7F));
+	assert_eq!(iter.next(), Some(0xFF));
+	assert_eq!(iter.next(), None);
+
+	let mut iter = map.clone().into_values();
+
+	assert_eq!(iter.next(), Some(0xFF));
+	assert_eq!(iter.next(), Some(0x80));
+	assert_eq!(iter.next(), Some(0x00));
 	assert_eq!(iter.next(), None);
 }

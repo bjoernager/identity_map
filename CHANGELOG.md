@@ -1,7 +1,33 @@
 # Changelog
 
-This is the changelog of [identity_map](https://crates.io/crates/identity_map/).
+This is the changelog of [`identity_map`](https://crates.io/crates/identity_map/).
 See `README.md` for more information.
+
+## 0.4.0
+
+* Add `keys`, `values`, and `values_mut` methods to `IdentityMap`
+* Add `Keys`, `Values`, and `ValuesMut` iterators to `identity_map`
+* Update docs
+* Add `get_key_value` method to `IdentityMap`
+* Add `get` method to `IdentitySet`
+* Unimplement `IndexMut` for `IdentityMap`
+* Add `take` method to `IdentitySet`
+* Fix `IdentityMap::remove` and `IdentitySet::remove` using old query syntax
+* Add `remove_entry` method to `IdentityMap`
+* Add `shrink_to` and `shrink_to_fit` methods to `IdentityMap` and `IdentitySet`
+* Add `clear` method to `IdentityMap` and `IdentitySet`
+* Add `into_keys` and `into_values` destructors to `IdentityMap`
+* Add `IntoKeys` and `IntoValues` iterators to `identity_map`
+* Update tests
+* Add `retain` method to `IdentityMap` and `IdentitySet`
+* Implement `FromIterator<(K, V)>` and `Extend<(K, V)>` for `IdentityMap<K, V>`
+* Implement `FromIterator<T>` and `Extend<T>` for `IdentitySet<T>`
+* Fix `<IdentityMap<K, V> as From<[(K, V); _]>::from` and `<IdentitySet<T> as From<[T; _]>::from` not checking for duplicate keys
+* Add `A: Allocator` and `K: Eq` bounds to `From<[(K, V); _]>` for `IdentityMap<K, V>`
+* Add `A: Allocator` and `T: Eq` bounds to `From<[T; _]>` for `IdentitySet<T>`
+* Remove `A: Eq` bound from `Eq` for `IdentityMap<_, _, A>` and `IdentitySet<_, A>`
+* Remove `A: PartialEq` bound from `PartialEq` for `IdentityMap<_, _, A>` and `IdentitySet<_, A>`
+* Remove `A: Hash` bound from `Hash` for `IdentitySet<_, A>`
 
 ## 0.3.2
 
@@ -29,7 +55,7 @@ See `README.md` for more information.
 * Update syntax for querying keys
 * Rename `IdentityMap::contains` to `contains_key`
 * Implement `Debug` for `IdentityMap` and `IdentitySet`
-* Fix `<IdentitySet<K, V> as From<[(K, V)]>::from` not sorting input array
+* Fix `<IdentityMap<K, V> as From<[(K, V); _]>::from` not sorting input array
 * Update lints
 * Update readme
 

@@ -64,7 +64,7 @@ where
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		f
 			.debug_tuple("IterMut")
-			.field(&self.iter.as_slice())
+			.field(&self.as_slice())
 			.finish()
 	}
 }

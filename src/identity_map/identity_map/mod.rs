@@ -29,7 +29,16 @@
 #[cfg(test)]
 mod test;
 
-use crate::identity_map::{IntoIter, Iter, IterMut};
+use crate::identity_map::{
+	IntoIter,
+	IntoKeys,
+	IntoValues,
+	Iter,
+	IterMut,
+	Keys,
+	Values,
+	ValuesMut,
+};
 
 use allocator_api2::alloc::{Allocator, Global};
 use allocator_api2::vec::Vec;
@@ -37,14 +46,14 @@ use core::borrow::Borrow;
 use core::fmt::{self, Debug, Formatter};
 use core::hash::{Hash, Hasher};
 use core::mem::swap;
-use core::ops::{Index, IndexMut};
+use core::ops::Index;
 
 /// An ordered identity map.
 ///
 /// This map associates specific keys with specific values, whereby each key is unique.
 ///
 /// Unlike other maps such as [`HashMap`](std::collections::HashMap), this type only transforms keys as if the [`identity`](core::convert::identity) function was used.
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone)]
 pub struct IdentityMap<K, V, A: Allocator = Global> {
 	buf: Vec<(K, V), A>,
 }
@@ -130,6 +139,28 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 		Self { buf }
 	}
 
+	/// Retains only key-value pairs as specified by a predicate.
+	///
+	/// In other words, each pair `(k, v)` where `!f(k, v)` is true.
+	///
+	/// # Panics
+	///
+	/// Panics if `f` panics.
+	#[inline(always)]
+	#[track_caller]
+	pub fn retain<F: FnMut(&K, &mut V) -> bool>(&mut self, mut f: F) {
+		self.buf.retain_mut(|(k, v)| f(&*k, v));
+	}
+
+	/// Clears the map.
+	///
+	/// All contained keys and values are dropped after a call to this method.
+	/// The length counter is then reset to zero.
+	#[inline(always)]
+	pub fn clear(&mut self) {
+		self.buf.clear();
+	}
+
 	/// Reserves additional capacity for the map.
 	///
 	/// # Panics
@@ -142,6 +173,27 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 		self.buf.reserve(len);
 	}
 
+	/// Shrinks the map to a specified length.
+	///
+	/// The capacity is shrunk such that it exactly contains the current data.
+	///
+	/// # Panics
+	///
+	/// If the provided capacity is greater than the current, then this method will panic.
+	#[inline(always)]
+	#[track_caller]
+	pub fn shrink_to(&mut self, cap: usize) {
+		self.buf.shrink_to(cap)
+	}
+
+	/// Shrinks the map to the current length.
+	///
+	/// The capacity is shrunk such that it exactly contains the current data.
+	#[inline(always)]
+	pub fn shrink_to_fit(&mut self) {
+		self.buf.shrink_to_fit()
+	}
+
 	/// Borrows the map's allocator.
 	#[inline(always)]
 	#[must_use]
@@ -149,7 +201,7 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 		self.buf.allocator()
 	}
 
-	/// Gets a iterator of the containedf key-value pairs.
+	/// Gets an iterator of the contained key-value pairs.
 	#[inline(always)]
 	pub fn iter(&self) -> Iter<K, V> {
 		Iter::new(self)
@@ -159,6 +211,24 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 	#[inline(always)]
 	pub fn iter_mut(&mut self) -> IterMut<K, V> {
 		IterMut::new(self)
+	}
+
+	/// Gets an iterator of the contained keys.
+	#[inline(always)]
+	pub fn keys(&self) -> Keys<K, V> {
+		Keys::new(self)
+	}
+
+	/// Gets an iterator of the contained values.
+	#[inline(always)]
+	pub fn values(&self) -> Values<K, V> {
+		Values::new(self)
+	}
+
+	/// Gets a mutable iterator of the contained values.
+	#[inline(always)]
+	pub fn values_mut(&mut self) -> ValuesMut<K, V> {
+		ValuesMut::new(self)
 	}
 
 	/// Retrieves the total capacity of the map.
@@ -216,6 +286,18 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 		self.buf.as_mut_slice()
 	}
 
+	/// Gets an iterator of the contained keys.
+	#[inline(always)]
+	pub fn into_keys(self) -> IntoKeys<K, V, A> {
+		IntoKeys::new(self)
+	}
+
+	/// Gets an iterator of the contained values.
+	#[inline(always)]
+	pub fn into_values(self) -> IntoValues<K, V, A> {
+		IntoValues::new(self)
+	}
+
 	#[inline(always)]
 	#[must_use]
 	pub(crate) fn into_vec(self) -> Vec<(K, V), A> {
@@ -268,9 +350,13 @@ where
 	/// The associated value is returned from this method.
 	/// If no pair existed with the provided key, then this method will instead return a [`None`] instance.
 	#[inline]
-	pub fn remove(&mut self, key: &K) -> Option<V> {
+	pub fn remove_entry<Q>(&mut self, key: &Q) -> Option<(K, V)>
+	where
+		K: Borrow<Q>,
+		Q: Eq + Ord + ?Sized,
+	{
 		// Search for the given key. Short-circuit if it
-		// the key wasn't present.
+		// wasn't present.
 
 		let index = match self.get_index(key) {
 			Ok(index) => index,
@@ -278,11 +364,23 @@ where
 			_ => return None,
 		};
 
-		// Retrieve the value from the buffer.
+		// Retrieve the pair from the buffer.
 
-		let (_, value) = self.buf.remove(index);
+		let (key, value) = self.buf.remove(index);
+		Some((key, value))
+	}
 
-		Some(value)
+	/// Removes the whole pair associated with the specific key.
+	///
+	/// The associated value is returned from this method.
+	/// If no pair existed with the provided key, then this method will instead return a [`None`] instance.
+	#[inline(always)]
+	pub fn remove<Q>(&mut self, key: &Q) -> Option<V>
+	where
+		K: Borrow<Q>,
+		Q: Eq + Ord + ?Sized,
+	{
+		self.remove_entry(key).map(|(_, v)| v)
 	}
 
 	/// Gets the raw index of the specified key.
@@ -299,6 +397,25 @@ where
 			let other_key = Borrow::<Q>::borrow(other_key);
 			other_key.cmp(key)
 		})
+	}
+
+	/// Borrows a key-value pair.
+	#[inline(always)]
+	#[must_use]
+	#[track_caller]
+	pub fn get_key_value<Q>(&self, key: &Q) -> Option<(&K, &V)>
+	where
+		K: Borrow<Q>,
+		Q: Eq + Ord + ?Sized,
+	{
+		match self.get_index(key) {
+			Ok(index) => {
+				let (key, value) = self.buf.get(index).unwrap();
+				Some((key, value))
+			}
+
+			_ => None,
+		}
 	}
 
 	/// Borrows the associated value of a key.
@@ -370,13 +487,57 @@ impl<K, V, A: Allocator + Default> Default for IdentityMap<K, V, A> {
 	}
 }
 
-impl<K: Ord, V, const N: usize> From<[(K, V); N]> for IdentityMap<K, V> {
+impl<K, V, A> Eq for IdentityMap<K, V, A>
+where
+	K: Eq,
+	V: Eq,
+	A: Allocator,
+{ }
+
+impl<K, V, A> Extend<(K, V)> for IdentityMap<K, V, A>
+where
+	K: Eq + Ord,
+	A: Allocator,
+{
+	#[inline]
+	fn extend<I: IntoIterator<Item = (K, V)>>(&mut self, iter: I) {
+		let iter = iter.into_iter();
+
+		self.reserve(iter.size_hint().0);
+
+		for (key, value) in iter {
+			self.insert(key, value);
+		}
+	}
+}
+
+impl<K, V, A, const N: usize> From<[(K, V); N]> for IdentityMap<K, V, A>
+where
+	K: Eq + Ord,
+	A: Allocator + Default,
+{
 	#[inline(always)]
 	fn from(value: [(K, V); N]) -> Self {
-		let mut buf = Vec::from(value);
-		buf.sort_unstable_by(|(k0, _), (k1, _)| k0.cmp(k1));
+		value.into_iter().collect()
+	}
+}
 
-		Self { buf }
+impl<K, V, A> FromIterator<(K, V)> for IdentityMap<K, V, A>
+where
+	K: Eq + Ord,
+	A: Allocator + Default,
+{
+	#[inline]
+	fn from_iter<I: IntoIterator<Item = (K, V)>>(iter: I) -> Self {
+		let iter = iter.into_iter();
+
+		let mut this = Self::with_capacity_in(iter.size_hint().0, Default::default());
+
+		for (key, value) in iter {
+			this.insert(key, value);
+		}
+
+		this
 	}
 }
 
@@ -404,19 +565,6 @@ where
 	#[track_caller]
 	fn index(&self, index: &Q) -> &Self::Output {
 		self.get(index).unwrap()
-	}
-}
-
-impl<K, V, A, Q> IndexMut<&Q> for IdentityMap<K, V, A>
-where
-	K: Borrow<Q> + Eq + Ord,
-	A: Allocator,
-	Q: Eq + Ord + ?Sized,
-{
-	#[inline(always)]
-	#[track_caller]
-	fn index_mut(&mut self, index: &Q) -> &mut Self::Output {
-		self.get_mut(index).unwrap()
 	}
 }
 
@@ -450,5 +598,17 @@ impl<'a, K, V, A: Allocator> IntoIterator for &'a mut IdentityMap<K, V, A> {
 	#[inline(always)]
 	fn into_iter(self) -> Self::IntoIter {
 		self.iter_mut()
+	}
+}
+
+impl<K, V, A> PartialEq for IdentityMap<K, V, A>
+where
+	K: PartialEq,
+	V: PartialEq,
+	A: Allocator,
+{
+	#[inline(always)]
+	fn eq(&self, other: &Self) -> bool {
+		self.buf == other.buf
 	}
 }

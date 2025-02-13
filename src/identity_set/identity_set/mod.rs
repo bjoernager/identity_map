@@ -35,7 +35,7 @@ use crate::identity_set::{IntoIter, Iter, IterMut};
 use allocator_api2::alloc::{Allocator, Global};
 use core::borrow::Borrow;
 use core::fmt::{self, Debug, Formatter};
-use core::mem::ManuallyDrop;
+use core::hash::{Hash, Hasher};
 
 /// An ordered identity set.
 ///
@@ -43,7 +43,7 @@ use core::mem::ManuallyDrop;
 ///
 /// Unlike other sets such as [`HashSet`](std::collections::HashSet), this type only transforms keys as if the [`identity`](core::convert::identity) function was used.
 #[repr(transparent)]
-#[derive(Clone, Eq, Hash, PartialEq)]
+#[derive(Clone)]
 pub struct IdentitySet<T, A: Allocator = Global> {
 	map: IdentityMap<T, (), A>,
 }
@@ -133,6 +133,28 @@ impl<T, A: Allocator> IdentitySet<T, A> {
 		Self { map }
 	}
 
+	/// Retains only keys as specified by a predicate.
+	///
+	/// In other words, each key `k` where `!f(k)` is true.
+	///
+	/// # Panics
+	///
+	/// Panics if `f` panics.
+	#[inline(always)]
+	#[track_caller]
+	pub fn retain<F: FnMut(&T) -> bool>(&mut self, mut f: F) {
+		self.map.retain(|k, _| f(k));
+	}
+
+	/// Clears the set.
+	///
+	/// All contained keys and values are dropped after a call to this method.
+	/// The length counter is then reset to zero.
+	#[inline(always)]
+	pub fn clear(&mut self) {
+		self.map.clear();
+	}
+
 	/// Reserves additional capacity for the set.
 	///
 	/// # Panics
@@ -145,6 +167,27 @@ impl<T, A: Allocator> IdentitySet<T, A> {
 		self.map.reserve(count);
 	}
 
+	/// Shrinks the set to a specified length.
+	///
+	/// The capacity is shrunk such that it exactly contains the current data.
+	///
+	/// # Panics
+	///
+	/// If the provided capacity is greater than the current, then this method will panic.
+	#[inline(always)]
+	#[track_caller]
+	pub fn shrink_to(&mut self, cap: usize) {
+		self.map.shrink_to(cap)
+	}
+
+	/// Shrinks the set to the current length.
+	///
+	/// The capacity is shrunk such that it exactly contains the current data.
+	#[inline(always)]
+	pub fn shrink_to_fit(&mut self) {
+		self.map.shrink_to_fit()
+	}
+
 	/// Borrows the set's allocator.
 	#[inline(always)]
 	#[must_use]
@@ -152,7 +195,7 @@ impl<T, A: Allocator> IdentitySet<T, A> {
 		self.map.allocator()
 	}
 
-	/// Gets a iterator of the containedf key-value pairs.
+	/// Gets an iterator of the contained key-value pairs.
 	#[inline(always)]
 	pub fn iter(&self) -> Iter<T> {
 		Iter::new(self)
@@ -270,8 +313,34 @@ where
 	/// If no pair existed with the provided key, then this method will instead return a [`None`] instance.
 	#[inline(always)]
 	#[track_caller]
+	pub fn take<U>(&mut self, key: &U) -> Option<T>
+	where
+		T: Borrow<U>,
+		U: Eq + Ord + ?Sized,
+	{
+		self.map.remove_entry(key).map(|(k, _)| k)
+	}
+
+	/// Removes the whole pair associated with the specific key.
+	///
+	/// The associated value is returned from this method.
+	/// If no pair existed with the provided key, then this method will instead return a [`None`] instance.
+	#[inline(always)]
+	#[track_caller]
 	pub fn remove(&mut self, key: &T) -> bool {
-		self.map.remove(key).is_some()
+		self.take(key).is_some()
+	}
+
+	/// Borrows a key.
+	#[inline(always)]
+	#[must_use]
+	#[track_caller]
+	pub fn get<U>(&self, key: &U) -> Option<&T>
+	where
+		T: Borrow<U>,
+		U: Eq + Ord + ?Sized,
+	{
+		self.map.get_key_value(key).map(|(k, _)| k)
 	}
 
 	/// Checks if the set contains the specified key.
@@ -297,6 +366,12 @@ where
 	}
 }
 
+impl<T, A> Eq for IdentitySet<T, A>
+where
+	T: Eq,
+	A: Allocator,
+{ }
+
 impl<K, A: Allocator + Default> Default for IdentitySet<K, A> {
 	#[inline(always)]
 	fn default() -> Self {
@@ -304,18 +379,61 @@ impl<K, A: Allocator + Default> Default for IdentitySet<K, A> {
 	}
 }
 
-impl<T: Ord, const N: usize> From<[T; N]> for IdentitySet<T> {
+impl<T, A> Extend<T> for IdentitySet<T, A>
+where
+	T: Eq + Ord,
+	A: Allocator,
+{
+	#[inline]
+	fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+		let iter = iter.into_iter();
+
+		self.reserve(iter.size_hint().0);
+
+		for key in iter {
+			self.insert(key);
+		}
+	}
+}
+
+impl<T, A, const N: usize> From<[T; N]> for IdentitySet<T, A>
+where
+	T: Eq + Ord,
+	A: Allocator + Default,
+{
 	#[inline(always)]
 	fn from(value: [T; N]) -> Self {
-		let value = ManuallyDrop::new(value);
+		value.into_iter().collect()
+	}
+}
 
-		// SAFETY: `(T, ())` is transparent to `T`. The
-		// previous `value` is also not used at all after
-		// this transmutation.
-		let value = unsafe { (&raw const value).cast::<[(T, ()); N]>().read() };
+impl<T, A> FromIterator<T> for IdentitySet<T, A>
+where
+	T: Eq + Ord,
+	A: Allocator + Default,
+{
+	#[inline]
+	fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+		let iter = iter.into_iter();
 
-		let map = value.into();
-		Self { map }
+		let mut this = Self::with_capacity_in(iter.size_hint().0, Default::default());
+
+		for key in iter {
+			this.insert(key);
+		}
+
+		this
+	}
+}
+
+impl<T, A> Hash for IdentitySet<T, A>
+where
+	T: Hash,
+	A: Allocator,
+{
+	#[inline(always)]
+	fn hash<H: Hasher>(&self, state: &mut H) {
+		self.as_slice().hash(state);
 	}
 }
 
@@ -349,5 +467,16 @@ impl<'a, T, A: Allocator> IntoIterator for &'a mut IdentitySet<T, A> {
 	#[inline(always)]
 	fn into_iter(self) -> Self::IntoIter {
 		self.iter_mut()
+	}
+}
+
+impl<T, A> PartialEq for IdentitySet<T, A>
+where
+	T: PartialEq,
+	A: Allocator,
+{
+	#[inline(always)]
+	fn eq(&self, other: &Self) -> bool {
+		self.map == other.map
 	}
 }

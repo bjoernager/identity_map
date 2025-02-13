@@ -33,7 +33,7 @@ use allocator_api2::vec::{self, Vec};
 use core::fmt::{self, Debug, Formatter};
 use core::iter::FusedIterator;
 
- /// Owning identity map iterator.
+/// Owning identity map iterator.
 #[must_use]
 #[derive(Clone)]
 pub struct IntoIter<K, V, A: Allocator = Global> {

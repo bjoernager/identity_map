@@ -26,6 +26,8 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+use core::num::NonZero;
+
 use crate::identity_set::IdentitySet;
 
 #[allow(clippy::len_zero)]
@@ -92,4 +94,32 @@ fn test_identity_set() {
 	assert!(!set.contains(&'\u{1F12F}'));
 	assert!(!set.contains(&'\u{03FD}'));
 	assert!(!set.contains(&'\0'));
+}
+
+#[test]
+fn test_identity_set_from_iter() {
+	let data = [
+		NonZero::new(0x01).unwrap(),
+		NonZero::new(0x1F).unwrap(),
+		NonZero::new(0xFF).unwrap(),
+		NonZero::new(0x07).unwrap(),
+		NonZero::new(0x7F).unwrap(),
+		NonZero::new(0x0F).unwrap(),
+		NonZero::new(0x03).unwrap(),
+		NonZero::new(0x3F).unwrap(),
+		//NonZero::new(0x00).unwrap(),
+	];
+
+	let set: IdentitySet<NonZero<u8>> = data.into_iter().collect();
+
+	let mut iter = set.into_iter();
+
+	assert_eq!(iter.next().map(NonZero::get), Some(0x01));
+	assert_eq!(iter.next().map(NonZero::get), Some(0x03));
+	assert_eq!(iter.next().map(NonZero::get), Some(0x07));
+	assert_eq!(iter.next().map(NonZero::get), Some(0x0F));
+	assert_eq!(iter.next().map(NonZero::get), Some(0x1F));
+	assert_eq!(iter.next().map(NonZero::get), Some(0x3F));
+	assert_eq!(iter.next().map(NonZero::get), Some(0x7F));
+	assert_eq!(iter.next().map(NonZero::get), Some(0xFF));
 }
