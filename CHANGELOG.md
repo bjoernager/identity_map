@@ -3,6 +3,11 @@
 This is the changelog of [`identity_map`](https://crates.io/crates/identity_map/).
 See `README.md` for more information.
 
+## 0.5.1
+
+* Update readme
+* Update docs
+
 ## 0.5.0
 
 * Add `Union`, `Difference`, `Intersection`, and `SymmetricDifference`, iterators to `identity_set`

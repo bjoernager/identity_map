@@ -31,7 +31,7 @@ use crate::identity_set::{Difference, IdentitySet, next_sorted};
 use allocator_api2::alloc::Allocator;
 use core::iter::{FusedIterator, Peekable};
 
-/// Iterator denoting the [symmetric difference](https://en.wikipedia.org/wiki/Symmetric_difference/) between two [identity sets](IdentitySet).
+/// Iterator denoting the [symmetric difference](https://en.wikipedia.org/wiki/Symmetric_difference) between two [identity sets](IdentitySet).
 #[must_use]
 #[derive(Clone)]
 pub struct SymmetricDifference<'a, T, A>
@@ -48,7 +48,7 @@ where
 	T: Ord,
 	A: Allocator,
 {
-	/// Constructs a new iterator denoting the [symmetric difference](https://en.wikipedia.org/wiki/Symmetric_difference/) between two [identity sets](IdentitySet).
+	/// Constructs a new iterator denoting the [symmetric difference](https://en.wikipedia.org/wiki/Symmetric_difference) between two [identity sets](IdentitySet).
 	#[inline(always)]
 	pub(crate) fn new(this: &'a IdentitySet<T, A>, other: &'a IdentitySet<T, A>) -> Self {
 		let lhs = this.difference(other).peekable();

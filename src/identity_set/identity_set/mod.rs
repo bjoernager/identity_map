@@ -357,7 +357,7 @@ where
 		self.map.contains_key(key)
 	}
 
-	/// Gets an iterator denoting the [intersection](https://en.wikipedia.org/wiki/Intersection/) between two sets.
+	/// Gets an iterator denoting the [intersection](https://en.wikipedia.org/wiki/Intersection) between two sets.
 	#[inline(always)]
 	pub fn intersection<'a>(&'a self, other: &'a Self) -> Intersection<'a, T, A> {
 		Intersection::new(self, other)
@@ -369,13 +369,13 @@ where
 		Difference::new(self, other)
 	}
 
-	/// Gets an iterator denoting the [symmetric difference](https://en.wikipedia.org/wiki/Symmetric_difference/) between two sets
+	/// Gets an iterator denoting the [symmetric difference](https://en.wikipedia.org/wiki/Symmetric_difference) between two sets
 	#[inline(always)]
 	pub fn symmetric_difference<'a>(&'a self, other: &'a Self) -> SymmetricDifference<'a, T, A> {
 		SymmetricDifference::new(self, other)
 	}
 
-	/// Gets an iterator denoting the [union](https://en.wikipedia.org/wiki/Union_(set_theory)/) between two sets
+	/// Gets an iterator denoting the [union](https://en.wikipedia.org/wiki/Union_(set_theory)) between two sets
 	#[inline(always)]
 	pub fn union<'a>(&'a self, other: &'a Self) -> Union<'a, T, A> {
 		Union::new(self, other)

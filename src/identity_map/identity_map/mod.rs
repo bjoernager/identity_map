@@ -53,6 +53,8 @@ use core::ops::Index;
 /// This map associates specific keys with specific values, whereby each key is unique.
 ///
 /// Unlike other maps such as [`HashMap`](std::collections::HashMap), this type only transforms keys as if the [`identity`](core::convert::identity) function was used.
+///
+/// As this map is ordered, lookup, insertion, and removal performance are all *O*(log<sub>2</sub> *n*) .
 #[derive(Clone)]
 pub struct IdentityMap<K, V, A: Allocator = Global> {
 	buf: Vec<(K, V), A>,

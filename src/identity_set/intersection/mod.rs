@@ -31,7 +31,7 @@ use crate::identity_set::{IdentitySet, Iter};
 use allocator_api2::alloc::Allocator;
 use core::iter::FusedIterator;
 
-/// Iterator denoting the [intersection](https://en.wikipedia.org/wiki/Intersection/) between two [identity sets](IdentitySet).
+/// Iterator denoting the [intersection](https://en.wikipedia.org/wiki/Intersection) between two [identity sets](IdentitySet).
 #[must_use]
 #[derive(Clone)]
 pub struct Intersection<'a, T, A>
@@ -48,7 +48,7 @@ where
 	T: Ord,
 	A: Allocator,
 {
-	/// Constructs a new iterator denoting the [intersection](https://en.wikipedia.org/wiki/Intersection/) between two [identity sets](IdentitySet).
+	/// Constructs a new iterator denoting the [intersection](https://en.wikipedia.org/wiki/Intersection) between two [identity sets](IdentitySet).
 	#[inline(always)]
 	pub(crate) fn new(this: &'a IdentitySet<T, A>, other: &'a IdentitySet<T, A>) -> Self {
 		let this = this.iter();

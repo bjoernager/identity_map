@@ -65,7 +65,7 @@ where
 		(Some(lhs), Some(rhs)) => {
 			match lhs.cmp(rhs) {
 				Ordering::Equal => {
-					// The left-hand size
+					// The left hand size takes precedence.
 
 					let _ = riter.next();
 
