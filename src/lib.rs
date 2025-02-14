@@ -55,7 +55,7 @@
 
 extern crate alloc;
 
-//#[cfg(doc)]
+#[cfg(doc)]
 extern crate std;
 
 /// Includes a module and imports it contents.

@@ -3,6 +3,10 @@
 This is the changelog of [`identity_map`](https://crates.io/crates/identity_map/).
 See `README.md` for more information.
 
+## 0.5.2
+
+* Fix the `std` crate being required
+
 ## 0.5.1
 
 * Update readme
