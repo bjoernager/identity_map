@@ -30,7 +30,51 @@
 
 use crate::use_mod;
 
+use_mod!(pub difference);
 use_mod!(pub identity_set);
+use_mod!(pub intersection);
 use_mod!(pub into_iter);
 use_mod!(pub iter);
-use_mod!(pub iter_mut);
+use_mod!(pub symmetric_difference);
+use_mod!(pub union);
+
+use core::cmp::Ordering;
+use core::iter::Peekable;
+
+/// Picks next. smallest value between two iterator.
+///
+/// Note that both iterators must already themselves be sorted.
+#[inline]
+#[must_use]
+fn next_sorted<I, J>(liter: &mut Peekable<I>, riter: &mut Peekable<J>) -> Option<I::Item>
+where
+	I: Iterator<Item: Ord>,
+	J: Iterator<Item = I::Item>,
+{
+	let lhs = liter.peek();
+	let rhs = riter.peek();
+
+	// Select the largest key between the two iterator
+	// and continue on the appropriate iterator.
+
+	match (lhs, rhs) {
+		(None,    None)    => None,
+		(Some(_), None)    => Some(liter.next().unwrap()),
+		(None,    Some(_)) => Some(riter.next().unwrap()),
+
+		(Some(lhs), Some(rhs)) => {
+			match lhs.cmp(rhs) {
+				Ordering::Equal => {
+					// The left-hand size
+
+					let _ = riter.next();
+
+					Some(liter.next().unwrap())
+				}
+
+				Ordering::Less    => Some(liter.next().unwrap()),
+				Ordering::Greater => Some(riter.next().unwrap()),
+			}
+		}
+	}
+}

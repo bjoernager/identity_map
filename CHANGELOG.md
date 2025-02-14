@@ -3,6 +3,21 @@
 This is the changelog of [`identity_map`](https://crates.io/crates/identity_map/).
 See `README.md` for more information.
 
+## 0.5.0
+
+* Add `Union`, `Difference`, `Intersection`, and `SymmetricDifference`, iterators to `identity_set`
+* Add `union`, `difference`, `intersection`, and `symmetric_difference`, methods to `IdentitySet`
+* Add `serde` feature
+* Implement `serde::Serialize` for `IdentityMap` and `IdentitySet`
+* Fix `identity_map::Iter` yielding `&(K, V)` instead of `(&K, &V)`
+* Fix `identity_map::IterMut` yielding `&mut (K, V)` instead of `(&K, &mut V)`
+* Remove `identity_set::IterMut` and `IdentitySet::iter_mut`
+* Update docs
+* Unimplement `IntoIterator` for `&mut IdentitySet`
+* Fix `<identity_set::{IntoIter, Iter} as Iterator>::next` acting like `DoubleEndedIterator::next_back`
+* Update tests
+* Implement `BitAnd`, `BitOr`, `BitXor`, and `Sub` for `&IdentitySet`
+
 ## 0.4.0
 
 * Add `keys`, `values`, and `values_mut` methods to `IdentityMap`

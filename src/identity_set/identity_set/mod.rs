@@ -30,12 +30,20 @@
 mod test;
 
 use crate::identity_map::IdentityMap;
-use crate::identity_set::{IntoIter, Iter, IterMut};
+use crate::identity_set::{
+	Difference,
+	Intersection,
+	IntoIter,
+	Iter,
+	SymmetricDifference,
+	Union,
+};
 
 use allocator_api2::alloc::{Allocator, Global};
 use core::borrow::Borrow;
 use core::fmt::{self, Debug, Formatter};
 use core::hash::{Hash, Hasher};
+use core::ops::{BitAnd, BitOr, BitXor, Sub};
 
 /// An ordered identity set.
 ///
@@ -148,7 +156,7 @@ impl<T, A: Allocator> IdentitySet<T, A> {
 
 	/// Clears the set.
 	///
-	/// All contained keys and values are dropped after a call to this method.
+	/// All contained keys are dropped after a call to this method.
 	/// The length counter is then reset to zero.
 	#[inline(always)]
 	pub fn clear(&mut self) {
@@ -195,16 +203,10 @@ impl<T, A: Allocator> IdentitySet<T, A> {
 		self.map.allocator()
 	}
 
-	/// Gets an iterator of the contained key-value pairs.
+	/// Gets an iterator of the contained keys.
 	#[inline(always)]
 	pub fn iter(&self) -> Iter<T> {
 		Iter::new(self)
-	}
-
-	/// Gets a mutable iterator of the contained key-value pairs.
-	#[inline(always)]
-	pub fn iter_mut(&mut self) -> IterMut<T> {
-		IterMut::new(self)
 	}
 
 	/// Retrieves the total capacity of the set.
@@ -250,7 +252,7 @@ impl<T, A: Allocator> IdentitySet<T, A> {
 		self.map.as_mut_ptr() as *mut T
 	}
 
-	/// Gets a slice over the set's key-value pairs.
+	/// Gets a slice over the set's keys.
 	#[inline(always)]
 	#[must_use]
 	pub fn as_slice(&self) -> &[T] {
@@ -258,7 +260,7 @@ impl<T, A: Allocator> IdentitySet<T, A> {
 		unsafe { &*(&raw const *self.map.as_slice() as *const [T]) }
 	}
 
-	/// Gets a mutable slice over the set's key-value pairs.
+	/// Gets a mutable slice over the set's keys.
 	#[inline(always)]
 	#[must_use]
 	pub fn as_mut_slice(&mut self) -> &mut [T] {
@@ -267,6 +269,7 @@ impl<T, A: Allocator> IdentitySet<T, A> {
 	}
 
 	/// Borrows the set as a map.
+	#[allow(unused)]
 	#[inline(always)]
 	#[must_use]
 	pub(crate) fn as_map(&self) -> &IdentityMap<T, (), A> {
@@ -274,6 +277,7 @@ impl<T, A: Allocator> IdentitySet<T, A> {
 	}
 
 	/// Mutably borrows the set as a map.
+	#[allow(unused)]
 	#[inline(always)]
 	#[must_use]
 	pub(crate) fn as_mut_map(&mut self) -> &mut IdentityMap<T, (), A> {
@@ -281,6 +285,7 @@ impl<T, A: Allocator> IdentitySet<T, A> {
 	}
 
 	/// Converts the set into a map.
+	#[allow(unused)]
 	#[inline(always)]
 	#[must_use]
 	pub(crate) fn into_map(self) -> IdentityMap<T, (), A> {
@@ -290,41 +295,39 @@ impl<T, A: Allocator> IdentitySet<T, A> {
 
 impl<T, A> IdentitySet<T, A>
 where
-	T: Eq + Ord,
+	T: Ord,
 	A: Allocator,
 {
-	/// Inserts a new key-value pair into the set.
+	/// Inserts a new key pair into the set.
 	///
-	/// If the provided key already exists in the set, then its associated value is simply updated.
-	/// The previous value is in that case returned from this method.
+	/// If the provided key already exists in the set, then this method will return `true`.
+	/// In all other cases, it will return `false`.
 	///
 	/// # Panics
 	///
-	/// If the set did not already hold `key` as a key and could not grow its buffer to accommodate the `key` & `value` pair, then this method will panic.
+	/// If the set did not already hold `key` as a key and could not grow its buffer to accommodate the key, then this method will panic.
 	#[inline(always)]
 	#[track_caller]
 	pub fn insert(&mut self, key: T) -> bool {
 		self.map.insert(key, ()).is_some()
 	}
 
-	/// Removes the whole pair associated with the specific key.
+	/// Takes a specific key out from the set.
 	///
-	/// The associated value is returned from this method.
-	/// If no pair existed with the provided key, then this method will instead return a [`None`] instance.
+	/// If the provided key was not present in the set, then this method will instead return a [`None`] instance.
 	#[inline(always)]
 	#[track_caller]
 	pub fn take<U>(&mut self, key: &U) -> Option<T>
 	where
 		T: Borrow<U>,
-		U: Eq + Ord + ?Sized,
+		U: Ord + ?Sized,
 	{
 		self.map.remove_entry(key).map(|(k, _)| k)
 	}
 
-	/// Removes the whole pair associated with the specific key.
+	/// Remove a specific key from the set.
 	///
-	/// The associated value is returned from this method.
-	/// If no pair existed with the provided key, then this method will instead return a [`None`] instance.
+	/// This method will return `true` if the provided key was present in the set.
 	#[inline(always)]
 	#[track_caller]
 	pub fn remove(&mut self, key: &T) -> bool {
@@ -338,7 +341,7 @@ where
 	pub fn get<U>(&self, key: &U) -> Option<&T>
 	where
 		T: Borrow<U>,
-		U: Eq + Ord + ?Sized,
+		U: Ord + ?Sized,
 	{
 		self.map.get_key_value(key).map(|(k, _)| k)
 	}
@@ -349,9 +352,72 @@ where
 	pub fn contains<U>(&self, key: &U) -> bool
 	where
 		T: Borrow<U>,
-		U: Eq + Ord + ?Sized,
+		U: Ord + ?Sized,
 	{
 		self.map.contains_key(key)
+	}
+
+	/// Gets an iterator denoting the [intersection](https://en.wikipedia.org/wiki/Intersection/) between two sets.
+	#[inline(always)]
+	pub fn intersection<'a>(&'a self, other: &'a Self) -> Intersection<'a, T, A> {
+		Intersection::new(self, other)
+	}
+
+	/// Gets an iterator denoting the [difference](https://en.wikipedia.org/wiki/Complement_(set_theory)#Relative_complement) between two sets.
+	#[inline(always)]
+	pub fn difference<'a>(&'a self, other: &'a Self) -> Difference<'a, T, A> {
+		Difference::new(self, other)
+	}
+
+	/// Gets an iterator denoting the [symmetric difference](https://en.wikipedia.org/wiki/Symmetric_difference/) between two sets
+	#[inline(always)]
+	pub fn symmetric_difference<'a>(&'a self, other: &'a Self) -> SymmetricDifference<'a, T, A> {
+		SymmetricDifference::new(self, other)
+	}
+
+	/// Gets an iterator denoting the [union](https://en.wikipedia.org/wiki/Union_(set_theory)/) between two sets
+	#[inline(always)]
+	pub fn union<'a>(&'a self, other: &'a Self) -> Union<'a, T, A> {
+		Union::new(self, other)
+	}
+}
+
+impl<T, A> BitAnd for &IdentitySet<T, A>
+where
+	T: Clone + Ord,
+	A: Allocator + Default,
+{
+	type Output = IdentitySet<T, A>;
+
+	#[inline(always)]
+	fn bitand(self, rhs: Self) -> Self::Output {
+		self.intersection(rhs).cloned().collect()
+	}
+}
+
+impl<T, A> BitOr for &IdentitySet<T, A>
+where
+	T: Clone + Ord,
+	A: Allocator + Default,
+{
+	type Output = IdentitySet<T, A>;
+
+	#[inline(always)]
+	fn bitor(self, rhs: Self) -> Self::Output {
+		self.union(rhs).cloned().collect()
+	}
+}
+
+impl<T, A> BitXor for &IdentitySet<T, A>
+where
+	T: Clone + Ord,
+	A: Allocator + Default,
+{
+	type Output = IdentitySet<T, A>;
+
+	#[inline(always)]
+	fn bitxor(self, rhs: Self) -> Self::Output {
+		self.symmetric_difference(rhs).cloned().collect()
 	}
 }
 
@@ -372,7 +438,7 @@ where
 	A: Allocator,
 { }
 
-impl<K, A: Allocator + Default> Default for IdentitySet<K, A> {
+impl<T, A: Allocator + Default> Default for IdentitySet<T, A> {
 	#[inline(always)]
 	fn default() -> Self {
 		Self::new_in(Default::default())
@@ -381,7 +447,7 @@ impl<K, A: Allocator + Default> Default for IdentitySet<K, A> {
 
 impl<T, A> Extend<T> for IdentitySet<T, A>
 where
-	T: Eq + Ord,
+	T: Ord,
 	A: Allocator,
 {
 	#[inline]
@@ -398,7 +464,7 @@ where
 
 impl<T, A, const N: usize> From<[T; N]> for IdentitySet<T, A>
 where
-	T: Eq + Ord,
+	T: Ord,
 	A: Allocator + Default,
 {
 	#[inline(always)]
@@ -409,7 +475,7 @@ where
 
 impl<T, A> FromIterator<T> for IdentitySet<T, A>
 where
-	T: Eq + Ord,
+	T: Ord,
 	A: Allocator + Default,
 {
 	#[inline]
@@ -459,17 +525,6 @@ impl<'a, T, A: Allocator> IntoIterator for &'a IdentitySet<T, A> {
 	}
 }
 
-impl<'a, T, A: Allocator> IntoIterator for &'a mut IdentitySet<T, A> {
-	type Item = &'a mut T;
-
-	type IntoIter = IterMut<'a, T>;
-
-	#[inline(always)]
-	fn into_iter(self) -> Self::IntoIter {
-		self.iter_mut()
-	}
-}
-
 impl<T, A> PartialEq for IdentitySet<T, A>
 where
 	T: PartialEq,
@@ -478,5 +533,30 @@ where
 	#[inline(always)]
 	fn eq(&self, other: &Self) -> bool {
 		self.map == other.map
+	}
+}
+
+#[cfg(feature = "serde")]
+impl<T, A> serde::Serialize for IdentitySet<T, A>
+where
+	T: serde::Serialize,
+	A: Allocator,
+{
+	#[inline(always)]
+	fn serialize<S: serde::Serializer>(&self, serialiser: S) -> Result<S::Ok, S::Error> {
+		serialiser.collect_seq(self.iter())
+	}
+}
+
+impl<T, A> Sub for &IdentitySet<T, A>
+where
+	T: Clone + Ord,
+	A: Allocator + Default,
+{
+	type Output = IdentitySet<T, A>;
+
+	#[inline(always)]
+	fn sub(self, rhs: Self) -> Self::Output {
+		self.difference(rhs).cloned().collect()
 	}
 }

@@ -26,76 +26,64 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use crate::identity_map;
-use crate::identity_set::IdentitySet;
+use crate::identity_set::{Difference, IdentitySet, next_sorted};
 
 use allocator_api2::alloc::Allocator;
-use core::fmt::{self, Debug, Formatter};
-use core::iter::FusedIterator;
-use core::ptr;
+use core::iter::{FusedIterator, Peekable};
 
-/// Borrowing identity set iterator.
+/// Iterator denoting the [symmetric difference](https://en.wikipedia.org/wiki/Symmetric_difference/) between two [identity sets](IdentitySet).
 #[must_use]
-#[repr(transparent)]
 #[derive(Clone)]
-pub struct Iter<'a, T> {
-	iter: identity_map::Iter<'a, T, ()>,
+pub struct SymmetricDifference<'a, T, A>
+where
+	T: Ord,
+	A: Allocator,
+{
+	lhs: Peekable<Difference<'a, T, A>>,
+	rhs: Peekable<Difference<'a, T, A>>,
 }
 
-impl<'a, T> Iter<'a, T> {
-	/// Constructs a new, borrowing identity set iterator.
+impl<'a, T, A: Allocator> SymmetricDifference<'a, T, A>
+where
+	T: Ord,
+	A: Allocator,
+{
+	/// Constructs a new iterator denoting the [symmetric difference](https://en.wikipedia.org/wiki/Symmetric_difference/) between two [identity sets](IdentitySet).
 	#[inline(always)]
-	pub(crate) fn new<A: Allocator>(set: &'a IdentitySet<T, A>) -> Self {
-		let iter = set.as_map().iter();
-		Self { iter }
-	}
+	pub(crate) fn new(this: &'a IdentitySet<T, A>, other: &'a IdentitySet<T, A>) -> Self {
+		let lhs = this.difference(other).peekable();
+		let rhs = other.difference(this).peekable();
 
-	/// Gets a slice of the key-value pairs.
-	#[inline(always)]
-	pub(crate) fn as_slice(&self) -> &[T] {
-		let ptr = ptr::from_ref(self.iter.as_slice()) as *const [T];
-
-		// SAFETY: `(T, ())` is transparent to `T`.
-		unsafe { &*ptr }
-	}
-}
-
-impl<T: Debug> Debug for Iter<'_, T> {
-	#[inline(always)]
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-		f.debug_tuple("Iter").field(&self.as_slice()).finish()
+		Self { lhs, rhs }
 	}
 }
 
-impl<T> Default for Iter<'_, T> {
-	#[inline(always)]
-	fn default() -> Self {
-		let iter = Default::default();
-		Self { iter }
-	}
-}
+impl<T, A: Allocator> FusedIterator for SymmetricDifference<'_, T, A>
+where
+	T: Ord,
+	A: Allocator,
+{ }
 
-impl<T> DoubleEndedIterator for Iter<'_, T> {
-	#[inline(always)]
-	fn next_back(&mut self) -> Option<Self::Item> {
-		self.iter.next_back().map(|(k, _)| k)
-	}
-}
-
-impl<T> ExactSizeIterator for Iter<'_, T> { }
-
-impl<T> FusedIterator for Iter<'_, T> { }
-
-impl<'a, T> Iterator for Iter<'a, T> {
+impl<'a, T, A> Iterator for SymmetricDifference<'a, T, A>
+where
+	T: Ord,
+	A: Allocator,
+{
 	type Item = &'a T;
 
 	#[inline(always)]
 	fn next(&mut self) -> Option<Self::Item> {
-		self.iter.next().map(|(k, _)| k)
+		next_sorted(&mut self.lhs, &mut self.rhs)
 	}
 
 	#[inline(always)]
 	fn size_hint(&self) -> (usize, Option<usize>) {
-		self.iter.size_hint()
+		// Either boths sets are identical or they do not
+		// overlap at all.
+
+		let min = 0x0;
+		let max = self.lhs.size_hint().1.unwrap() + self.rhs.size_hint().1.unwrap();
+
+		(min, Some(max))
 	}
 }

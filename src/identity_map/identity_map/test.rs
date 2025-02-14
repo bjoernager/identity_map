@@ -163,19 +163,25 @@ fn test_identity_map_iter() {
 
 	let mut iter = map.iter();
 
-	assert_eq!(iter.next(), Some(&(0x00, 0xFF)));
-	assert_eq!(iter.next(), Some(&(0x7F, 0x80)));
-	assert_eq!(iter.next(), Some(&(0xFF, 0x00)));
+	assert_eq!(iter.len(), 0x3);
+
+	assert_eq!(iter.next(), Some((&0x00, &0xFF)));
+	assert_eq!(iter.next(), Some((&0x7F, &0x80)));
+	assert_eq!(iter.next(), Some((&0xFF, &0x00)));
 	assert_eq!(iter.next(), None);
 
 	let mut iter = map.iter_mut();
 
-	assert_eq!(iter.next(), Some(&mut (0x00, 0xFF)));
-	assert_eq!(iter.next(), Some(&mut (0x7F, 0x80)));
-	assert_eq!(iter.next(), Some(&mut (0xFF, 0x00)));
+	assert_eq!(iter.len(), 0x3);
+
+	assert_eq!(iter.next(), Some((&0x00, &mut 0xFF)));
+	assert_eq!(iter.next(), Some((&0x7F, &mut 0x80)));
+	assert_eq!(iter.next(), Some((&0xFF, &mut 0x00)));
 	assert_eq!(iter.next(), None);
 
 	let mut iter = map.keys();
+
+	assert_eq!(iter.len(), 0x3);
 
 	assert_eq!(iter.next(), Some(&0x00));
 	assert_eq!(iter.next(), Some(&0x7F));
@@ -184,12 +190,16 @@ fn test_identity_map_iter() {
 
 	let mut iter = map.values();
 
+	assert_eq!(iter.len(), 0x3);
+
 	assert_eq!(iter.next(), Some(&0xFF));
 	assert_eq!(iter.next(), Some(&0x80));
 	assert_eq!(iter.next(), Some(&0x00));
 	assert_eq!(iter.next(), None);
 
 	let mut iter = map.values_mut();
+
+	assert_eq!(iter.len(), 0x3);
 
 	assert_eq!(iter.next(), Some(&mut 0xFF));
 	assert_eq!(iter.next(), Some(&mut 0x80));
@@ -198,6 +208,8 @@ fn test_identity_map_iter() {
 
 	let mut iter = map.clone().into_iter();
 
+	assert_eq!(iter.len(), 0x3);
+
 	assert_eq!(iter.next(), Some((0x00, 0xFF)));
 	assert_eq!(iter.next(), Some((0x7F, 0x80)));
 	assert_eq!(iter.next(), Some((0xFF, 0x00)));
@@ -205,12 +217,16 @@ fn test_identity_map_iter() {
 
 	let mut iter = map.clone().into_keys();
 
+	assert_eq!(iter.len(), 0x3);
+
 	assert_eq!(iter.next(), Some(0x00));
 	assert_eq!(iter.next(), Some(0x7F));
 	assert_eq!(iter.next(), Some(0xFF));
 	assert_eq!(iter.next(), None);
 
 	let mut iter = map.clone().into_values();
+
+	assert_eq!(iter.len(), 0x3);
 
 	assert_eq!(iter.next(), Some(0xFF));
 	assert_eq!(iter.next(), Some(0x80));

@@ -26,76 +26,66 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use crate::identity_map;
-use crate::identity_set::IdentitySet;
+use crate::identity_set::{IdentitySet, Iter};
 
 use allocator_api2::alloc::Allocator;
-use core::fmt::{self, Debug, Formatter};
 use core::iter::FusedIterator;
-use core::ptr;
 
-/// Borrowing identity set iterator.
+/// Iterator denoting the [difference](https://en.wikipedia.org/wiki/Complement_(set_theory)#Relative_complement) between two [identity sets](IdentitySet).
 #[must_use]
-#[repr(transparent)]
 #[derive(Clone)]
-pub struct Iter<'a, T> {
-	iter: identity_map::Iter<'a, T, ()>,
+pub struct Difference<'a, T, A>
+where
+	T: Ord,
+	A: Allocator,
+{
+	this:  Iter<'a, T>,
+	other: &'a IdentitySet<T, A>,
 }
 
-impl<'a, T> Iter<'a, T> {
-	/// Constructs a new, borrowing identity set iterator.
+impl<'a, T, A: Allocator> Difference<'a, T, A>
+where
+	T: Ord,
+	A: Allocator,
+{
+	/// Constructs a new iterator denoting the [difference](https://en.wikipedia.org/wiki/Complement_(set_theory)#Relative_complement) between two [identity sets](IdentitySet).
 	#[inline(always)]
-	pub(crate) fn new<A: Allocator>(set: &'a IdentitySet<T, A>) -> Self {
-		let iter = set.as_map().iter();
-		Self { iter }
-	}
-
-	/// Gets a slice of the key-value pairs.
-	#[inline(always)]
-	pub(crate) fn as_slice(&self) -> &[T] {
-		let ptr = ptr::from_ref(self.iter.as_slice()) as *const [T];
-
-		// SAFETY: `(T, ())` is transparent to `T`.
-		unsafe { &*ptr }
-	}
-}
-
-impl<T: Debug> Debug for Iter<'_, T> {
-	#[inline(always)]
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-		f.debug_tuple("Iter").field(&self.as_slice()).finish()
+	pub(crate) fn new(this: &'a IdentitySet<T, A>, other: &'a IdentitySet<T, A>) -> Self {
+		let this = this.iter();
+		Self { this, other }
 	}
 }
 
-impl<T> Default for Iter<'_, T> {
-	#[inline(always)]
-	fn default() -> Self {
-		let iter = Default::default();
-		Self { iter }
-	}
-}
+impl<T, A: Allocator> FusedIterator for Difference<'_, T, A>
+where
+	T: Ord,
+	A: Allocator,
+{ }
 
-impl<T> DoubleEndedIterator for Iter<'_, T> {
-	#[inline(always)]
-	fn next_back(&mut self) -> Option<Self::Item> {
-		self.iter.next_back().map(|(k, _)| k)
-	}
-}
-
-impl<T> ExactSizeIterator for Iter<'_, T> { }
-
-impl<T> FusedIterator for Iter<'_, T> { }
-
-impl<'a, T> Iterator for Iter<'a, T> {
+impl<'a, T, A> Iterator for Difference<'a, T, A>
+where
+	T: Ord,
+	A: Allocator,
+{
 	type Item = &'a T;
 
 	#[inline(always)]
 	fn next(&mut self) -> Option<Self::Item> {
-		self.iter.next().map(|(k, _)| k)
+		for key in self.this.by_ref() {
+			if !self.other.contains(key) { return Some(key) };
+		}
+
+		None
 	}
 
 	#[inline(always)]
 	fn size_hint(&self) -> (usize, Option<usize>) {
-		self.iter.size_hint()
+		// Either boths sets are identical or they do not
+		// overlap at all.
+
+		let min = 0x0;
+		let max = self.this.len();
+
+		(min, Some(max))
 	}
 }

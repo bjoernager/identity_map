@@ -114,6 +114,8 @@ fn test_identity_set_from_iter() {
 
 	let mut iter = set.into_iter();
 
+	assert_eq!(iter.len(), 0x8);
+
 	assert_eq!(iter.next().map(NonZero::get), Some(0x01));
 	assert_eq!(iter.next().map(NonZero::get), Some(0x03));
 	assert_eq!(iter.next().map(NonZero::get), Some(0x07));
@@ -122,4 +124,101 @@ fn test_identity_set_from_iter() {
 	assert_eq!(iter.next().map(NonZero::get), Some(0x3F));
 	assert_eq!(iter.next().map(NonZero::get), Some(0x7F));
 	assert_eq!(iter.next().map(NonZero::get), Some(0xFF));
+	assert_eq!(iter.next().map(NonZero::get), None);
+}
+
+#[test]
+fn test_identity_set_ops() {
+	let set0: IdentitySet<i32> = [
+		0x00, 0x01, 0x01, 0x02, 0x03, 0x05,
+		0x08, 0x0D, 0x15, 0x22, 0x37, 0x59,
+	].into();
+
+	let set1: IdentitySet<i32> = [
+		0x02, 0x03, 0x05, 0x07, 0x0B, 0x0D,
+		0x11, 0x13, 0x17, 0x1D, 0x1F, 0x25,
+	].into();
+
+	let mut iter = set0.intersection(&set1);
+
+	assert_eq!(iter.size_hint(), (0x0, Some(0xB)));
+
+	assert_eq!(iter.next(), Some(&0x02));
+	assert_eq!(iter.next(), Some(&0x03));
+	assert_eq!(iter.next(), Some(&0x05));
+	assert_eq!(iter.next(), Some(&0x0D));
+	assert_eq!(iter.next(), None);
+
+	let mut iter = set0.difference(&set1);
+
+	assert_eq!(iter.size_hint(), (0x0, Some(0xB)));
+
+	assert_eq!(iter.next(), Some(&0x00));
+	assert_eq!(iter.next(), Some(&0x01));
+	assert_eq!(iter.next(), Some(&0x08));
+	assert_eq!(iter.next(), Some(&0x15));
+	assert_eq!(iter.next(), Some(&0x22));
+	assert_eq!(iter.next(), Some(&0x37));
+	assert_eq!(iter.next(), Some(&0x59));
+	assert_eq!(iter.next(), None);
+
+	let mut iter = set1.difference(&set0);
+
+	assert_eq!(iter.size_hint(), (0x0, Some(0xC)));
+
+	assert_eq!(iter.next(), Some(&0x07));
+	assert_eq!(iter.next(), Some(&0x0B));
+	assert_eq!(iter.next(), Some(&0x11));
+	assert_eq!(iter.next(), Some(&0x13));
+	assert_eq!(iter.next(), Some(&0x17));
+	assert_eq!(iter.next(), Some(&0x1D));
+	assert_eq!(iter.next(), Some(&0x1F));
+	assert_eq!(iter.next(), Some(&0x25));
+	assert_eq!(iter.next(), None);
+
+	let mut iter = set0.symmetric_difference(&set1);
+
+	assert_eq!(iter.size_hint(), (0x0, Some(0x17)));
+
+	assert_eq!(iter.next(), Some(&0x00));
+	assert_eq!(iter.next(), Some(&0x01));
+	assert_eq!(iter.next(), Some(&0x07));
+	assert_eq!(iter.next(), Some(&0x08));
+	assert_eq!(iter.next(), Some(&0x0B));
+	assert_eq!(iter.next(), Some(&0x11));
+	assert_eq!(iter.next(), Some(&0x13));
+	assert_eq!(iter.next(), Some(&0x15));
+	assert_eq!(iter.next(), Some(&0x17));
+	assert_eq!(iter.next(), Some(&0x1D));
+	assert_eq!(iter.next(), Some(&0x1F));
+	assert_eq!(iter.next(), Some(&0x22));
+	assert_eq!(iter.next(), Some(&0x25));
+	assert_eq!(iter.next(), Some(&0x37));
+	assert_eq!(iter.next(), Some(&0x59));
+	assert_eq!(iter.next(), None);
+
+	let mut iter = set0.union(&set1);
+
+	assert_eq!(iter.size_hint(), (0xB, Some(0x17)));
+
+	assert_eq!(iter.next(), Some(&0x00));
+	assert_eq!(iter.next(), Some(&0x01));
+	assert_eq!(iter.next(), Some(&0x02));
+	assert_eq!(iter.next(), Some(&0x03));
+	assert_eq!(iter.next(), Some(&0x05));
+	assert_eq!(iter.next(), Some(&0x07));
+	assert_eq!(iter.next(), Some(&0x08));
+	assert_eq!(iter.next(), Some(&0x0B));
+	assert_eq!(iter.next(), Some(&0x0D));
+	assert_eq!(iter.next(), Some(&0x11));
+	assert_eq!(iter.next(), Some(&0x13));
+	assert_eq!(iter.next(), Some(&0x15));
+	assert_eq!(iter.next(), Some(&0x17));
+	assert_eq!(iter.next(), Some(&0x1D));
+	assert_eq!(iter.next(), Some(&0x1F));
+	assert_eq!(iter.next(), Some(&0x22));
+	assert_eq!(iter.next(), Some(&0x25));
+	assert_eq!(iter.next(), Some(&0x37));
+	assert_eq!(iter.next(), Some(&0x59));
+	assert_eq!(iter.next(), None);
 }

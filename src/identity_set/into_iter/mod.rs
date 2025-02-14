@@ -78,7 +78,7 @@ where
 	}
 }
 
-impl<K, A: Allocator + Default> Default for IntoIter<K, A> {
+impl<T, A: Allocator + Default> Default for IntoIter<T, A> {
 	#[inline(always)]
 	fn default() -> Self {
 		let iter = Default::default();
@@ -103,7 +103,7 @@ impl<T, A: Allocator> Iterator for IntoIter<T, A> {
 impl<T, A: Allocator> DoubleEndedIterator for IntoIter<T, A> {
 	#[inline(always)]
 	fn next_back(&mut self) -> Option<Self::Item> {
-		self.iter.next_back().map(|(k, _)| k)
+		self.iter.next().map(|(k, _)| k)
 	}
 }
 

@@ -80,7 +80,7 @@ impl<K, V> Default for IterMut<'_, K, V> {
 impl<K, V> DoubleEndedIterator for IterMut<'_, K, V> {
 	#[inline(always)]
 	fn next_back(&mut self) -> Option<Self::Item> {
-		self.iter.next_back()
+		self.iter.next_back().map(|(k, v)| (&*k, v))
 	}
 }
 
@@ -89,11 +89,11 @@ impl<K, V> ExactSizeIterator for IterMut<'_, K, V> { }
 impl<K, V> FusedIterator for IterMut<'_, K, V> { }
 
 impl<'a, K, V> Iterator for IterMut<'a, K, V> {
-	type Item = &'a mut (K, V);
+	type Item = (&'a K, &'a mut V);
 
 	#[inline(always)]
 	fn next(&mut self) -> Option<Self::Item> {
-		self.iter.next()
+		self.iter.next().map(|(k, v)| (&*k, v))
 	}
 
 	#[inline(always)]

@@ -307,7 +307,7 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 
 impl<K, V, A> IdentityMap<K, V, A>
 where
-	K: Eq + Ord,
+	K: Ord,
 	A: Allocator,
 {
 	/// Inserts a new key-value pair into the map.
@@ -353,7 +353,7 @@ where
 	pub fn remove_entry<Q>(&mut self, key: &Q) -> Option<(K, V)>
 	where
 		K: Borrow<Q>,
-		Q: Eq + Ord + ?Sized,
+		Q: Ord + ?Sized,
 	{
 		// Search for the given key. Short-circuit if it
 		// wasn't present.
@@ -378,7 +378,7 @@ where
 	pub fn remove<Q>(&mut self, key: &Q) -> Option<V>
 	where
 		K: Borrow<Q>,
-		Q: Eq + Ord + ?Sized,
+		Q: Ord + ?Sized,
 	{
 		self.remove_entry(key).map(|(_, v)| v)
 	}
@@ -391,7 +391,7 @@ where
 	fn get_index<Q>(&self, key: &Q) -> Result<usize, usize>
 	where
 		K: Borrow<Q>,
-		Q: Eq + Ord + ?Sized,
+		Q: Ord + ?Sized,
 	{
 		self.buf.binary_search_by(|(other_key, _)| {
 			let other_key = Borrow::<Q>::borrow(other_key);
@@ -406,7 +406,7 @@ where
 	pub fn get_key_value<Q>(&self, key: &Q) -> Option<(&K, &V)>
 	where
 		K: Borrow<Q>,
-		Q: Eq + Ord + ?Sized,
+		Q: Ord + ?Sized,
 	{
 		match self.get_index(key) {
 			Ok(index) => {
@@ -425,7 +425,7 @@ where
 	pub fn get<Q>(&self, key: &Q) -> Option<&V>
 	where
 		K: Borrow<Q>,
-		Q: Eq + Ord + ?Sized,
+		Q: Ord + ?Sized,
 	{
 		match self.get_index(key) {
 			Ok(index) => {
@@ -444,7 +444,7 @@ where
 	pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
 	where
 		K: Borrow<Q>,
-		Q: Eq + Ord + ?Sized,
+		Q: Ord + ?Sized,
 	{
 		match self.get_index(key) {
 			Ok(index) => {
@@ -462,7 +462,7 @@ where
 	pub fn contains_key<Q>(&self, key: &Q) -> bool
 	where
 		K: Borrow<Q>,
-		Q: Eq + Ord + ?Sized,
+		Q: Ord + ?Sized,
 	{
 		self.get_index(key).is_ok()
 	}
@@ -496,7 +496,7 @@ where
 
 impl<K, V, A> Extend<(K, V)> for IdentityMap<K, V, A>
 where
-	K: Eq + Ord,
+	K: Ord,
 	A: Allocator,
 {
 	#[inline]
@@ -513,7 +513,7 @@ where
 
 impl<K, V, A, const N: usize> From<[(K, V); N]> for IdentityMap<K, V, A>
 where
-	K: Eq + Ord,
+	K: Ord,
 	A: Allocator + Default,
 {
 	#[inline(always)]
@@ -524,7 +524,7 @@ where
 
 impl<K, V, A> FromIterator<(K, V)> for IdentityMap<K, V, A>
 where
-	K: Eq + Ord,
+	K: Ord,
 	A: Allocator + Default,
 {
 	#[inline]
@@ -555,9 +555,9 @@ where
 
 impl<K, V, A, Q> Index<&Q> for IdentityMap<K, V, A>
 where
-	K: Borrow<Q> + Eq + Ord,
+	K: Borrow<Q> + Ord,
 	A: Allocator,
-	Q: Eq + Ord + ?Sized,
+	Q: Ord + ?Sized,
 {
 	type Output = V;
 
@@ -580,7 +580,7 @@ impl<K, V, A: Allocator> IntoIterator for IdentityMap<K, V, A> {
 }
 
 impl<'a, K, V, A: Allocator> IntoIterator for &'a IdentityMap<K, V, A> {
-	type Item = &'a (K, V);
+	type Item = (&'a K, &'a V);
 
 	type IntoIter = Iter<'a, K, V>;
 
@@ -591,7 +591,7 @@ impl<'a, K, V, A: Allocator> IntoIterator for &'a IdentityMap<K, V, A> {
 }
 
 impl<'a, K, V, A: Allocator> IntoIterator for &'a mut IdentityMap<K, V, A> {
-	type Item = &'a mut (K, V);
+	type Item = (&'a K, &'a mut V);
 
 	type IntoIter = IterMut<'a, K, V>;
 
@@ -610,5 +610,18 @@ where
 	#[inline(always)]
 	fn eq(&self, other: &Self) -> bool {
 		self.buf == other.buf
+	}
+}
+
+#[cfg(feature = "serde")]
+impl<K, V, A> serde::Serialize for IdentityMap<K, V, A>
+where
+	K: serde::Serialize,
+	V: serde::Serialize,
+	A: Allocator,
+{
+	#[inline(always)]
+	fn serialize<S: serde::Serializer>(&self, serialiser: S) -> Result<S::Ok, S::Error> {
+		serialiser.collect_map(self.iter())
 	}
 }
