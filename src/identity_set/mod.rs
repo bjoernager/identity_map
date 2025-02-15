@@ -28,15 +28,21 @@
 
 //! The [`IdentitySet`] and associated facilities.
 
-use crate::use_mod;
+mod difference;
+mod identity_set;
+mod intersection;
+mod into_iter;
+mod iter;
+mod symmetric_difference;
+mod union;
 
-use_mod!(pub difference);
-use_mod!(pub identity_set);
-use_mod!(pub intersection);
-use_mod!(pub into_iter);
-use_mod!(pub iter);
-use_mod!(pub symmetric_difference);
-use_mod!(pub union);
+pub use difference::Difference;
+pub use identity_set::IdentitySet;
+pub use intersection::Intersection;
+pub use into_iter::IntoIter;
+pub use iter::Iter;
+pub use symmetric_difference::SymmetricDifference;
+pub use union::Union;
 
 use core::cmp::Ordering;
 use core::iter::Peekable;

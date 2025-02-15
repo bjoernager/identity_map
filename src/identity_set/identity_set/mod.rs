@@ -29,6 +29,9 @@
 #[cfg(test)]
 mod test;
 
+#[cfg(feature = "serde")]
+mod serde;
+
 use crate::identity_map::IdentityMap;
 use crate::identity_set::{
 	Difference,
@@ -533,18 +536,6 @@ where
 	#[inline(always)]
 	fn eq(&self, other: &Self) -> bool {
 		self.map == other.map
-	}
-}
-
-#[cfg(feature = "serde")]
-impl<T, A> serde::Serialize for IdentitySet<T, A>
-where
-	T: serde::Serialize,
-	A: Allocator,
-{
-	#[inline(always)]
-	fn serialize<S: serde::Serializer>(&self, serialiser: S) -> Result<S::Ok, S::Error> {
-		serialiser.collect_seq(self.iter())
 	}
 }
 

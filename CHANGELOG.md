@@ -3,6 +3,13 @@
 This is the changelog of [`identity_map`](https://crates.io/crates/identity_map/).
 See `README.md` for more information.
 
+## 0.6.0
+
+* Implement `serde::Deserialize` for `IdentityMap` and `IdentitySet`
+* Update lints
+* Enable all features on `docs.rs`
+* Update tests
+
 ## 0.5.2
 
 * Fix the `std` crate being required

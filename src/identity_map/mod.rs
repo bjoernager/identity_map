@@ -28,14 +28,22 @@
 
 //! The [`IdentityMap`] and associated facilities.
 
-use crate::use_mod;
+mod identity_map;
+mod into_iter;
+mod into_keys;
+mod into_values;
+mod iter;
+mod iter_mut;
+mod keys;
+mod values;
+mod values_mut;
 
-use_mod!(pub identity_map);
-use_mod!(pub into_iter);
-use_mod!(pub into_keys);
-use_mod!(pub into_values);
-use_mod!(pub iter);
-use_mod!(pub iter_mut);
-use_mod!(pub keys);
-use_mod!(pub values);
-use_mod!(pub values_mut);
+pub use identity_map::IdentityMap;
+pub use into_iter::IntoIter;
+pub use into_keys::IntoKeys;
+pub use into_values::IntoValues;
+pub use iter::Iter;
+pub use iter_mut::IterMut;
+pub use keys::Keys;
+pub use values::Values;
+pub use values_mut::ValuesMut;

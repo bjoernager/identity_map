@@ -29,6 +29,9 @@
 #[cfg(test)]
 mod test;
 
+#[cfg(feature = "serde")]
+mod serde;
+
 use crate::identity_map::{
 	IntoIter,
 	IntoKeys,
@@ -612,18 +615,5 @@ where
 	#[inline(always)]
 	fn eq(&self, other: &Self) -> bool {
 		self.buf == other.buf
-	}
-}
-
-#[cfg(feature = "serde")]
-impl<K, V, A> serde::Serialize for IdentityMap<K, V, A>
-where
-	K: serde::Serialize,
-	V: serde::Serialize,
-	A: Allocator,
-{
-	#[inline(always)]
-	fn serialize<S: serde::Serializer>(&self, serialiser: S) -> Result<S::Ok, S::Error> {
-		serialiser.collect_map(self.iter())
 	}
 }

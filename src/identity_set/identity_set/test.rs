@@ -26,9 +26,11 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use core::num::NonZero;
-
 use crate::identity_set::IdentitySet;
+
+use alloc::vec::Vec;
+use bincode::{deserialize_from, serialize_into};
+use core::num::NonZero;
 
 #[allow(clippy::len_zero)]
 #[test]
@@ -221,4 +223,21 @@ fn test_identity_set_ops() {
 	assert_eq!(iter.next(), Some(&0x37));
 	assert_eq!(iter.next(), Some(&0x59));
 	assert_eq!(iter.next(), None);
+}
+
+#[test]
+fn test_identity_set_serialise_deserialise() {
+	let input = IdentitySet::<isize>::from([
+		i16::MIN as isize,
+		0x0,
+		i16::MAX as isize,
+	]);
+
+	let mut buf = Vec::new();
+
+	serialize_into(&mut buf, &input).unwrap();
+
+	let output: IdentitySet<isize> = deserialize_from(&*buf).unwrap();
+
+	assert_eq!(output, input);
 }

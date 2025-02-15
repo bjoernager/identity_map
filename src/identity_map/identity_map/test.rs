@@ -28,6 +28,8 @@
 
 use crate::IdentityMap;
 
+use alloc::vec::Vec;
+use bincode::{deserialize_from, serialize_into};
 use core::sync::atomic::{AtomicU8, Ordering};
 
 #[allow(clippy::len_zero)]
@@ -232,4 +234,24 @@ fn test_identity_map_iter() {
 	assert_eq!(iter.next(), Some(0x80));
 	assert_eq!(iter.next(), Some(0x00));
 	assert_eq!(iter.next(), None);
+}
+
+#[test]
+fn test_identity_set_serialise_deserialise() {
+	let input = IdentityMap::<char, [u8; 0x2]>::from([
+		('Æ', *b"AE"),
+		('Ø', *b"OE"),
+		('Å', *b"AA"),
+		('æ', *b"ae"),
+		('ø', *b"oe"),
+		('å', *b"aa"),
+	]);
+
+	let mut buf = Vec::new();
+
+	serialize_into(&mut buf, &input).unwrap();
+
+	let output: IdentityMap<char, [u8; 0x2]> = deserialize_from(&*buf).unwrap();
+
+	assert_eq!(output, input);
 }
