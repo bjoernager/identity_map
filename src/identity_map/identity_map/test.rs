@@ -114,6 +114,62 @@ fn test_identity_map_clone() {
 }
 
 #[test]
+fn test_identity_map_drain() {
+	let mut map = IdentityMap::<&'static str, usize>::from([
+		("!",     0x00),
+		("())",   0x00),
+		("bool",  0x01),
+		("char",  0x04),
+		("u8",    0x01),
+		("u16",   0x02),
+		("u32",   0x04),
+		("u64",   0x08),
+		("u128",  0x10),
+		("usize", 0x02),
+		("i8",    0x01),
+		("i16",   0x02),
+		("i32",   0x04),
+		("i64",   0x08),
+		("i128",  0x10),
+		("isize", 0x02),
+		("f16",   0x02),
+		("f32",   0x04),
+		("f64",   0x08),
+		("f128",  0x10),
+	]);
+
+	assert_eq!(map.len(), 0x14);
+
+	let mut iter = map.drain();
+
+	assert_eq!(iter.next(), Some(("!",     0x00)));
+	assert_eq!(iter.next(), Some(("())",   0x00)));
+	assert_eq!(iter.next(), Some(("bool",  0x01)));
+	assert_eq!(iter.next(), Some(("char",  0x04)));
+	assert_eq!(iter.next(), Some(("f128",  0x10)));
+	assert_eq!(iter.next(), Some(("f16",   0x02)));
+	assert_eq!(iter.next(), Some(("f32",   0x04)));
+	assert_eq!(iter.next(), Some(("f64",   0x08)));
+	assert_eq!(iter.next(), Some(("i128",  0x10)));
+	assert_eq!(iter.next(), Some(("i16",   0x02)));
+	assert_eq!(iter.next(), Some(("i32",   0x04)));
+	assert_eq!(iter.next(), Some(("i64",   0x08)));
+	assert_eq!(iter.next(), Some(("i8",    0x01)));
+	assert_eq!(iter.next(), Some(("isize", 0x02)));
+	assert_eq!(iter.next(), Some(("u128",  0x10)));
+	assert_eq!(iter.next(), Some(("u16",   0x02)));
+	assert_eq!(iter.next(), Some(("u32",   0x04)));
+	assert_eq!(iter.next(), Some(("u64",   0x08)));
+	assert_eq!(iter.next(), Some(("u8",    0x01)));
+	assert_eq!(iter.next(), Some(("usize", 0x02)));
+	assert_eq!(iter.next(), None);
+
+	drop(iter);
+
+	assert!(map.is_empty());
+}
+
+#[test]
 fn test_identity_map_drop() {
 	static COUNTER: AtomicU8 = AtomicU8::new(0x0);
 

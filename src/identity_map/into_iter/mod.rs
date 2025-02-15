@@ -42,10 +42,6 @@ pub struct IntoIter<K, V, A: Allocator = Global> {
 
 impl<K, V, A: Allocator> IntoIter<K, V, A> {
 	/// Constructs a new, owning identity map iterator.
-	///
-	/// # Safety
-	///
-	/// The provided, raw identity map must be initialised.
 	#[inline(always)]
 	pub(crate) fn new(map: IdentityMap<K, V, A>) -> Self {
 		let iter = map.into_vec().into_iter();

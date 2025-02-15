@@ -29,6 +29,7 @@
 //! The [`IdentitySet`] and associated facilities.
 
 mod difference;
+mod drain;
 mod identity_set;
 mod intersection;
 mod into_iter;
@@ -37,6 +38,7 @@ mod symmetric_difference;
 mod union;
 
 pub use difference::Difference;
+pub use drain::Drain;
 pub use identity_set::IdentitySet;
 pub use intersection::Intersection;
 pub use into_iter::IntoIter;

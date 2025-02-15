@@ -33,6 +33,7 @@ mod test;
 mod serde;
 
 use crate::identity_map::{
+	Drain,
 	IntoIter,
 	IntoKeys,
 	IntoValues,
@@ -46,6 +47,7 @@ use crate::identity_map::{
 use allocator_api2::alloc::{Allocator, Global};
 use allocator_api2::vec::Vec;
 use core::borrow::Borrow;
+use core::cmp::Ordering;
 use core::fmt::{self, Debug, Formatter};
 use core::hash::{Hash, Hasher};
 use core::mem::swap;
@@ -206,6 +208,12 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 		self.buf.allocator()
 	}
 
+	/// Drains the key-value pairs of the map.
+	#[inline(always)]
+	pub fn drain(&mut self) -> Drain<K, V, A> {
+		Drain::new(self)
+	}
+
 	/// Gets an iterator of the contained key-value pairs.
 	#[inline(always)]
 	pub fn iter(&self) -> Iter<K, V> {
@@ -289,6 +297,20 @@ impl<K, V, A: Allocator> IdentityMap<K, V, A> {
 	#[must_use]
 	pub fn as_mut_slice(&mut self) -> &mut [(K, V)] {
 		self.buf.as_mut_slice()
+	}
+
+	#[allow(unused)]
+	#[inline(always)]
+	#[must_use]
+	pub(crate) fn as_vec(&self) -> &Vec<(K, V), A> {
+		&self.buf
+	}
+
+	#[allow(unused)]
+	#[inline(always)]
+	#[must_use]
+	pub(crate) fn as_mut_vec(&mut self) -> &mut Vec<(K, V), A> {
+		&mut self.buf
 	}
 
 	/// Gets an iterator of the contained keys.
@@ -606,6 +628,18 @@ impl<'a, K, V, A: Allocator> IntoIterator for &'a mut IdentityMap<K, V, A> {
 	}
 }
 
+impl<K, V, A> Ord for IdentityMap<K, V, A>
+where
+	K: Ord,
+	V: Ord,
+	A: Allocator,
+{
+	#[inline(always)]
+	fn cmp(&self, other: &Self) -> Ordering {
+		self.buf.cmp(&other.buf)
+	}
+}
+
 impl<K, V, A> PartialEq for IdentityMap<K, V, A>
 where
 	K: PartialEq,
@@ -615,5 +649,17 @@ where
 	#[inline(always)]
 	fn eq(&self, other: &Self) -> bool {
 		self.buf == other.buf
+	}
+}
+
+impl<K, V, A> PartialOrd for IdentityMap<K, V, A>
+where
+	K: PartialOrd,
+	V: PartialOrd,
+	A: Allocator,
+{
+	#[inline(always)]
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		self.buf.partial_cmp(&other.buf)
 	}
 }

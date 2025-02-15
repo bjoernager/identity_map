@@ -28,6 +28,7 @@
 
 //! The [`IdentityMap`] and associated facilities.
 
+mod drain;
 mod identity_map;
 mod into_iter;
 mod into_keys;
@@ -38,6 +39,7 @@ mod keys;
 mod values;
 mod values_mut;
 
+pub use drain::Drain;
 pub use identity_map::IdentityMap;
 pub use into_iter::IntoIter;
 pub use into_keys::IntoKeys;

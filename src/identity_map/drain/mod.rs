@@ -26,68 +26,56 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 // OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use crate::identity_map;
-use crate::identity_set::IdentitySet;
+use crate::identity_map::IdentityMap;
 
-use core::fmt::{self, Debug, Formatter};
 use allocator_api2::alloc::{Allocator, Global};
+use allocator_api2::vec;
+use core::fmt::{self, Debug, Formatter};
 use core::iter::FusedIterator;
-use core::ptr;
 
-/// Owning identity set iterator.
+/// Identity map drain.
 #[must_use]
-#[repr(transparent)]
-#[derive(Clone)]
-pub struct IntoIter<T, A: Allocator = Global> {
-	iter: identity_map::IntoIter<T, (), A>,
+pub struct Drain<'a, K, V, A: Allocator = Global> {
+	iter: vec::Drain<'a, (K, V), A>,
 }
 
-impl<T, A: Allocator> IntoIter<T, A> {
-	/// Constructs a new, owning identity set iterator.
+impl<'a, K, V, A: Allocator> Drain<'a, K, V, A> {
+	/// Constructs a new identity map drain.
 	#[inline(always)]
-	pub(crate) fn new(set: IdentitySet<T, A>) -> Self {
-		let iter = set.into_map().into_iter();
+	pub(crate) fn new(map: &'a mut IdentityMap<K, V, A>) -> Self {
+		let iter = map.as_mut_vec().drain(..);
 		Self { iter }
 	}
 
 	/// Gets a slice of the key-value pairs.
 	#[inline(always)]
-	pub(crate) fn as_slice(&self) -> &[T] {
-		let ptr = ptr::from_ref(self.iter.as_slice()) as *const [T];
-
-		// SAFETY: `(T, ())` is transparent to `T`.
-		unsafe { &*ptr }
+	#[must_use]
+	pub(crate) fn as_slice(&self) -> &[(K, V)] {
+		self.iter.as_slice()
 	}
 }
 
-impl<T, A> Debug for IntoIter<T, A>
+impl<K, V, A> Debug for Drain<'_, K, V, A>
 where
-	T: Debug,
+	K: Debug,
+	V: Debug,
 	A: Allocator,
 {
 	#[inline(always)]
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		f
-			.debug_tuple("IntoIter")
+			.debug_tuple("Drain")
 			.field(&self.as_slice())
 			.finish()
 	}
 }
 
-impl<T, A: Allocator + Default> Default for IntoIter<T, A> {
-	#[inline(always)]
-	fn default() -> Self {
-		let iter = Default::default();
-		Self { iter }
-	}
-}
-
-impl<T, A: Allocator> Iterator for IntoIter<T, A> {
-	type Item = T;
+impl<K, V, A: Allocator> Iterator for Drain<'_, K, V, A> {
+	type Item = (K, V);
 
 	#[inline(always)]
 	fn next(&mut self) -> Option<Self::Item> {
-		self.iter.next().map(|(k, _)| k)
+		self.iter.next()
 	}
 
 	#[inline(always)]
@@ -96,13 +84,13 @@ impl<T, A: Allocator> Iterator for IntoIter<T, A> {
 	}
 }
 
-impl<T, A: Allocator> DoubleEndedIterator for IntoIter<T, A> {
+impl<K, V, A: Allocator> DoubleEndedIterator for Drain<'_, K, V, A> {
 	#[inline(always)]
 	fn next_back(&mut self) -> Option<Self::Item> {
-		self.iter.next().map(|(k, _)| k)
+		self.iter.next_back()
 	}
 }
 
-impl<T, A: Allocator> ExactSizeIterator for IntoIter<T, A> { }
+impl<K, V, A: Allocator> ExactSizeIterator for Drain<'_, K, V, A> { }
 
-impl<T, A: Allocator> FusedIterator for IntoIter<T, A> { }
+impl<K, V, A: Allocator> FusedIterator for Drain<'_, K, V, A> { }

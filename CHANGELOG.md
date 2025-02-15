@@ -3,6 +3,15 @@
 This is the changelog of [`identity_map`](https://crates.io/crates/identity_map/).
 See `README.md` for more information.
 
+## 0.7.0
+
+* Add `is_superset`, `is_subset`, and `is_disjoint` methods to `IdentitySet`
+* Update docs
+* Implement `Ord` and `PartialOrd` for `IdentityMap` and `IdentitySet`
+* Add `Drain` iterator to `identity_map` and `identity_set`
+* Add `drain` method to `IdentityMap` and `IdentitySet`
+* Update tests
+
 ## 0.6.0
 
 * Implement `serde::Deserialize` for `IdentityMap` and `IdentitySet`
@@ -137,7 +146,7 @@ See `README.md` for more information.
 
 ## 0.0.1
 
-* Add license file
+* Add licence file
 * Add crate description
 
 ## 0.0.0

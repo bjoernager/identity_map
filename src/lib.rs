@@ -36,7 +36,7 @@
 //! Using the identity function *may* make tables larger in size (depending on the key type), but does also allow for making the very same tables non-collidable.
 //! The collections provided by this crate are ordered and required keys implementing [`Ord`].
 //!
-//! # Copyright & License.
+//! # Copyright & Licence.
 //!
 //! Copyright 2025 Gabriel Bjørnager Jensen.
 //!

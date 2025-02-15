@@ -241,3 +241,77 @@ fn test_identity_set_serialise_deserialise() {
 
 	assert_eq!(output, input);
 }
+
+#[test]
+fn test_identity_set_types() {
+	let set0 = IdentitySet::<u8>::from([
+		0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7,
+		0x8, 0x9, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF
+	]);
+
+	let set1 = IdentitySet::<u8>::from([
+		0x0, 0x2, 0x4, 0x6, 0x8, 0xA, 0xC, 0xE,
+	]);
+
+	let set2 = IdentitySet::<u8>::from([
+		0x1, 0x3, 0x5, 0x7, 0x9, 0xB, 0xD, 0xF,
+	]);
+
+	let set3 = IdentitySet::<u8>::new();
+
+	assert!(!set0.is_empty());
+	assert!(set0.is_superset(&set0));
+	assert!(set0.is_superset(&set1));
+	assert!(set0.is_superset(&set2));
+	assert!(set0.is_superset(&set3));
+	assert!(set0.is_subset(&set0));
+	assert!(!set0.is_subset(&set1));
+	assert!(!set0.is_subset(&set2));
+	assert!(!set0.is_subset(&set3));
+	assert!(!set0.is_disjoint(&set0));
+	assert!(!set0.is_disjoint(&set1));
+	assert!(!set0.is_disjoint(&set2));
+	assert!(set0.is_disjoint(&set3));
+
+	assert!(!set1.is_empty());
+	assert!(!set1.is_superset(&set0));
+	assert!(set1.is_superset(&set1));
+	assert!(!set1.is_superset(&set2));
+	assert!(set1.is_superset(&set3));
+	assert!(set1.is_subset(&set0));
+	assert!(set1.is_subset(&set1));
+	assert!(!set1.is_subset(&set2));
+	assert!(!set1.is_subset(&set3));
+	assert!(!set1.is_disjoint(&set0));
+	assert!(!set1.is_disjoint(&set1));
+	assert!(set1.is_disjoint(&set2));
+	assert!(set1.is_disjoint(&set3));
+
+	assert!(!set2.is_empty());
+	assert!(!set2.is_superset(&set0));
+	assert!(!set2.is_superset(&set1));
+	assert!(set2.is_superset(&set2));
+	assert!(set2.is_superset(&set3));
+	assert!(set2.is_subset(&set0));
+	assert!(!set2.is_subset(&set1));
+	assert!(set2.is_subset(&set2));
+	assert!(!set2.is_subset(&set3));
+	assert!(!set2.is_disjoint(&set0));
+	assert!(set2.is_disjoint(&set1));
+	assert!(!set2.is_disjoint(&set2));
+	assert!(set2.is_disjoint(&set3));
+
+	assert!(set3.is_empty());
+	assert!(!set3.is_superset(&set0));
+	assert!(!set3.is_superset(&set1));
+	assert!(!set3.is_superset(&set2));
+	assert!(set3.is_superset(&set3));
+	assert!(set3.is_subset(&set0));
+	assert!(set3.is_subset(&set1));
+	assert!(set3.is_subset(&set2));
+	assert!(set3.is_subset(&set3));
+	assert!(set3.is_disjoint(&set0));
+	assert!(set3.is_disjoint(&set1));
+	assert!(set3.is_disjoint(&set2));
+	assert!(set3.is_disjoint(&set3));
+}

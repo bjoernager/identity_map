@@ -35,6 +35,7 @@ mod serde;
 use crate::identity_map::IdentityMap;
 use crate::identity_set::{
 	Difference,
+	Drain,
 	Intersection,
 	IntoIter,
 	Iter,
@@ -44,6 +45,7 @@ use crate::identity_set::{
 
 use allocator_api2::alloc::{Allocator, Global};
 use core::borrow::Borrow;
+use core::cmp::Ordering;
 use core::fmt::{self, Debug, Formatter};
 use core::hash::{Hash, Hasher};
 use core::ops::{BitAnd, BitOr, BitXor, Sub};
@@ -206,6 +208,12 @@ impl<T, A: Allocator> IdentitySet<T, A> {
 		self.map.allocator()
 	}
 
+	/// Drains the keys of the set.
+	#[inline(always)]
+	pub fn drain(&mut self) -> Drain<T, A> {
+		Drain::new(self)
+	}
+
 	/// Gets an iterator of the contained keys.
 	#[inline(always)]
 	pub fn iter(&self) -> Iter<T> {
@@ -228,7 +236,7 @@ impl<T, A: Allocator> IdentitySet<T, A> {
 		self.map.len()
 	}
 
-	/// Tests if the set is empty.
+	/// Tests if the set is an [empty set](https://en.wikipedia.org/wiki/Empty_set).
 	#[inline(always)]
 	#[must_use]
 	pub fn is_empty(&self) -> bool {
@@ -301,6 +309,33 @@ where
 	T: Ord,
 	A: Allocator,
 {
+	/// Tests if the set is a [superset](https://en.wikipedia.org/wiki/Subset#Definition) of another set.
+	#[inline(always)]
+	#[must_use]
+	pub fn is_superset(&self, other: &Self) -> bool {
+		other.is_subset(self)
+	}
+
+	/// Tests if the set is a [subset](https://en.wikipedia.org/wiki/Subset) of another set.
+	#[inline(always)]
+	#[must_use]
+	pub fn is_subset(&self, other: &Self) -> bool {
+		if self.len() > other.len() { return false };
+
+		self.iter().all(|k| other.contains(k))
+	}
+
+	/// Tests if two sets are [disjoint](https://en.wikipedia.org/wiki/Disjoint_sets).
+	#[inline(always)]
+	#[must_use]
+	pub fn is_disjoint(&self, other: &Self) -> bool {
+		if self.len() <= other.len() {
+			self.iter().all(|k| !other.contains(k))
+		} else {
+			other.iter().all(|k| !self.contains(k))
+		}
+	}
+
 	/// Inserts a new key pair into the set.
 	///
 	/// If the provided key already exists in the set, then this method will return `true`.
@@ -528,6 +563,17 @@ impl<'a, T, A: Allocator> IntoIterator for &'a IdentitySet<T, A> {
 	}
 }
 
+impl<T, A> Ord for IdentitySet<T, A>
+where
+	T: Ord,
+	A: Allocator,
+{
+	#[inline(always)]
+	fn cmp(&self, other: &Self) -> Ordering {
+		self.map.cmp(&other.map)
+	}
+}
+
 impl<T, A> PartialEq for IdentitySet<T, A>
 where
 	T: PartialEq,
@@ -536,6 +582,17 @@ where
 	#[inline(always)]
 	fn eq(&self, other: &Self) -> bool {
 		self.map == other.map
+	}
+}
+
+impl<T, A> PartialOrd for IdentitySet<T, A>
+where
+	T: PartialOrd,
+	A: Allocator,
+{
+	#[inline(always)]
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		self.map.partial_cmp(&other.map)
 	}
 }
 
