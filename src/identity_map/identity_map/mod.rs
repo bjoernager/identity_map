@@ -1,30 +1,4 @@
 // Copyright 2025 Gabriel Bjørnager Jensen.
-//
-// Permission is hereby granted, free of charge, to
-// any person obtaining a copy of this software and
-// associated documentation files (the "Software"),
-// to deal in the Software without restriction, in-
-// cluding without limitation the rights to use,
-// copy, modify, merge, publish, distribute, subli-
-// cense, and/or sell copies of the Software, and
-// to permit persons to whom the Software is fur-
-// nished to do so, subject to the following condi-
-// tions:
-//
-// The above copyright notice and this permission
-// notice shall be included in all copies or sub-
-// stantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WAR-
-// RANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUD-
-// ING BUT NOT LIMITED TO THE WARRANTIES OF MER-
-// CHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
-// AND NONINFRINGEMENT. IN NO EVENT SHALL THE AU-
-// THORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-// CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
-// ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
-// OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #[cfg(test)]
 mod test;
@@ -337,6 +311,39 @@ where
 	K: Ord,
 	A: Allocator,
 {
+	/// Inserts all key-value pairs from another map, overwriting duplicates.
+	///
+	/// The other map `other` will be completely cleared
+	#[inline]
+	#[track_caller]
+	pub fn append(&mut self, other: &mut Self)
+	where
+		A: Clone,
+	{
+		if other.is_empty() { return };
+
+		if self.is_empty() {
+			swap(self, other);
+			return;
+		}
+
+		self.extend(other.drain());
+	}
+
+	/// Replaces a key-value pair.
+	#[inline]
+	pub(crate) fn replace(&mut self, mut key: K, mut value: V) -> Option<(K, V)> {
+		let slot = {
+			let index = self.get_index(&key).ok()?;
+			&mut self.buf[index]
+		};
+
+		swap(&mut slot.0, &mut key);
+		swap(&mut slot.1, &mut value);
+
+		Some((key, value))
+	}
+
 	/// Inserts a new key-value pair into the map.
 	///
 	/// If the provided key already exists in the map, then its associated value is simply updated.
@@ -402,12 +409,30 @@ where
 	/// The associated value is returned from this method.
 	/// If no pair existed with the provided key, then this method will instead return a [`None`] instance.
 	#[inline(always)]
+	#[must_use]
 	pub fn remove<Q>(&mut self, key: &Q) -> Option<V>
 	where
 		K: Borrow<Q>,
 		Q: Ord + ?Sized,
 	{
 		self.remove_entry(key).map(|(_, v)| v)
+	}
+
+	/// Pops the first key-value pair.
+	#[inline(always)]
+	#[must_use]
+	pub fn pop_first(&mut self) -> Option<(K, V)> {
+		if self.is_empty() { return None };
+
+		let entry = self.buf.remove(0x0);
+		Some(entry)
+	}
+
+	/// Pops the last key-value pair.
+	#[inline(always)]
+	#[must_use]
+	pub fn pop_last(&mut self) -> Option<(K, V)> {
+		self.buf.pop()
 	}
 
 	/// Gets the raw index of the specified key.
@@ -429,7 +454,6 @@ where
 	/// Borrows a key-value pair.
 	#[inline(always)]
 	#[must_use]
-	#[track_caller]
 	pub fn get_key_value<Q>(&self, key: &Q) -> Option<(&K, &V)>
 	where
 		K: Borrow<Q>,
@@ -448,7 +472,6 @@ where
 	/// Borrows the associated value of a key.
 	#[inline(always)]
 	#[must_use]
-	#[track_caller]
 	pub fn get<Q>(&self, key: &Q) -> Option<&V>
 	where
 		K: Borrow<Q>,
@@ -467,7 +490,6 @@ where
 	/// Mutably borrows the associated value of a key.
 	#[inline(always)]
 	#[must_use]
-	#[track_caller]
 	pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut V>
 	where
 		K: Borrow<Q>,
@@ -481,6 +503,20 @@ where
 
 			_ => None,
 		}
+	}
+
+	/// Borrows the first key-value pair.
+	#[inline(always)]
+	#[must_use]
+	pub fn first_key_value(&self) -> Option<(&K, &V)> {
+		self.buf.first().map(|(k, v)| (k, v))
+	}
+
+	/// Borrows the last key-value pair.
+	#[inline(always)]
+	#[must_use]
+	pub fn last_key_value(&self) -> Option<(&K, &V)> {
+		self.buf.last().map(|(k, v)| (k, v))
 	}
 
 	/// Checks if the map contains the specified key.
@@ -502,7 +538,7 @@ where
 	A: Allocator,
 {
 	#[inline(always)]
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Debug::fmt(self.as_slice(), f)
 	}
 }

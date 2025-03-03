@@ -1,30 +1,4 @@
 // Copyright 2025 Gabriel Bjørnager Jensen.
-//
-// Permission is hereby granted, free of charge, to
-// any person obtaining a copy of this software and
-// associated documentation files (the "Software"),
-// to deal in the Software without restriction, in-
-// cluding without limitation the rights to use,
-// copy, modify, merge, publish, distribute, subli-
-// cense, and/or sell copies of the Software, and
-// to permit persons to whom the Software is fur-
-// nished to do so, subject to the following condi-
-// tions:
-//
-// The above copyright notice and this permission
-// notice shall be included in all copies or sub-
-// stantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WAR-
-// RANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUD-
-// ING BUT NOT LIMITED TO THE WARRANTIES OF MER-
-// CHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
-// AND NONINFRINGEMENT. IN NO EVENT SHALL THE AU-
-// THORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-// CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
-// ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
-// OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #[cfg(test)]
 mod test;
@@ -309,31 +283,20 @@ where
 	T: Ord,
 	A: Allocator,
 {
-	/// Tests if the set is a [superset](https://en.wikipedia.org/wiki/Subset#Definition) of another set.
-	#[inline(always)]
-	#[must_use]
-	pub fn is_superset(&self, other: &Self) -> bool {
-		other.is_subset(self)
+	/// Inserts all keys from another set, overwriting duplicates.
+	#[inline]
+	#[track_caller]
+	pub fn append(&mut self, other: &mut Self)
+	where
+		A: Clone,
+	{
+		self.map.append(&mut other.map)
 	}
 
-	/// Tests if the set is a [subset](https://en.wikipedia.org/wiki/Subset) of another set.
+	/// Replaces a key.
 	#[inline(always)]
-	#[must_use]
-	pub fn is_subset(&self, other: &Self) -> bool {
-		if self.len() > other.len() { return false };
-
-		self.iter().all(|k| other.contains(k))
-	}
-
-	/// Tests if two sets are [disjoint](https://en.wikipedia.org/wiki/Disjoint_sets).
-	#[inline(always)]
-	#[must_use]
-	pub fn is_disjoint(&self, other: &Self) -> bool {
-		if self.len() <= other.len() {
-			self.iter().all(|k| !other.contains(k))
-		} else {
-			other.iter().all(|k| !self.contains(k))
-		}
+	pub fn replace(&mut self, key: T) -> Option<T> {
+		self.map.replace(key, ()).map(|(k, _)| k)
 	}
 
 	/// Inserts a new key pair into the set.
@@ -354,7 +317,7 @@ where
 	///
 	/// If the provided key was not present in the set, then this method will instead return a [`None`] instance.
 	#[inline(always)]
-	#[track_caller]
+	#[must_use = "use `IdentitySet::remove` if the key isn't desired"]
 	pub fn take<U>(&mut self, key: &U) -> Option<T>
 	where
 		T: Borrow<U>,
@@ -367,9 +330,22 @@ where
 	///
 	/// This method will return `true` if the provided key was present in the set.
 	#[inline(always)]
-	#[track_caller]
 	pub fn remove(&mut self, key: &T) -> bool {
 		self.take(key).is_some()
+	}
+
+	/// Pops the first key.
+	#[inline(always)]
+	#[must_use]
+	pub fn pop_first(&mut self) -> Option<T> {
+		self.map.pop_first().map(|(k, _)| k)
+	}
+
+	/// Pops the last key.
+	#[inline(always)]
+	#[must_use]
+	pub fn pop_last(&mut self) -> Option<T> {
+		self.map.pop_last().map(|(k, _)| k)
 	}
 
 	/// Borrows a key.
@@ -382,6 +358,20 @@ where
 		U: Ord + ?Sized,
 	{
 		self.map.get_key_value(key).map(|(k, _)| k)
+	}
+
+	/// Borrows the first key.
+	#[inline(always)]
+	#[must_use]
+	pub fn first(&self) -> Option<&T> {
+		self.map.first_key_value().map(|(k, _)| k)
+	}
+
+	/// Borrows the last key.
+	#[inline(always)]
+	#[must_use]
+	pub fn last(&self) -> Option<&T> {
+		self.map.last_key_value().map(|(k, _)| k)
 	}
 
 	/// Checks if the set contains the specified key.
@@ -417,6 +407,33 @@ where
 	#[inline(always)]
 	pub fn union<'a>(&'a self, other: &'a Self) -> Union<'a, T, A> {
 		Union::new(self, other)
+	}
+
+	/// Tests if the set is a [superset](https://en.wikipedia.org/wiki/Subset#Definition) of another set.
+	#[inline(always)]
+	#[must_use]
+	pub fn is_superset(&self, other: &Self) -> bool {
+		other.is_subset(self)
+	}
+
+	/// Tests if the set is a [subset](https://en.wikipedia.org/wiki/Subset) of another set.
+	#[inline(always)]
+	#[must_use]
+	pub fn is_subset(&self, other: &Self) -> bool {
+		if self.len() > other.len() { return false };
+
+		self.iter().all(|k| other.contains(k))
+	}
+
+	/// Tests if two sets are [disjoint](https://en.wikipedia.org/wiki/Disjoint_sets).
+	#[inline(always)]
+	#[must_use]
+	pub fn is_disjoint(&self, other: &Self) -> bool {
+		if self.len() <= other.len() {
+			self.iter().all(|k| !other.contains(k))
+		} else {
+			other.iter().all(|k| !self.contains(k))
+		}
 	}
 }
 
@@ -465,7 +482,7 @@ where
 	A: Allocator,
 {
 	#[inline(always)]
-	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		Debug::fmt(self.as_slice(), f)
 	}
 }

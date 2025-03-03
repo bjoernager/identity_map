@@ -3,6 +3,19 @@
 This is the changelog of [`identity_map`](https://crates.io/crates/identity_map/).
 See `README.md` for more information.
 
+## 0.8.0
+
+* Dual-license under MIT and/or Apache 2.0
+* Update lints
+* Update readme
+* Add `pop_first` and `pop_last` methods to `IdentityMap` and `IdentitySet`
+* Update `must_use` and `track_caller` usage
+* Update logo
+* Add `first_key_value` and `last_key_value` methods to `IdentityMap`
+* Add `first` and `last` methods to `IdentitySet`
+* Add `append` method to `IdentityMap` and `IdentitySet`
+* Add `replace` method to `IdentitySet`
+
 ## 0.7.0
 
 * Add `is_superset`, `is_subset`, and `is_disjoint` methods to `IdentitySet`

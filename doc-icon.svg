@@ -1,36 +1,36 @@
 <!--
 	Copyright 2025 Gabriel Bjørnager Jensen.
 
-	This work is released under a Creative Commons
-	Attribution-ShareAlike 4.0 International li-
-	cence.
+	This work is distributed under a Creative Com-
+	mons Attribution-ShareAlike 4.0 International
+	licence.
 -->
 
 <svg height="144" width="144" xmlns="http://www.w3.org/2000/svg">
 	<mask id="glyphOutline">
-		<!-- I: -->
-		<polygon fill="white" points="12,44 68,44 68,68 52,68 52,76 68,76 68,100 12,100 12,76 28,76 28,68 12,68" />
-
 		<!-- D: -->
-		<circle cx="104" cy="72" fill="white" r="28" />
-		<circle cx="104" cy="72" fill="black" r="4" />
+		<ellipse cx="104" cy="96" fill="white" rx="28" ry="36" />
+		<ellipse cx="104" cy="96" fill="black" rx="4" ry="12" />
 
-		<polygon fill="black" points="72,44 104,44 104,100 72,100" />
+		<polygon fill="black" points="72,56 104,56 104,136 72,136" />
 
-		<polygon fill="white" points="76,44 104,44 112,56 104,68 100,68 100,76 104,76 112,88 104,100 76,100" />
+		<polygon fill="white" points="76,60 104,60 116,72 104,84 100,84 100,108 104,108 116,120 104,132 76,132" />
+
+		<!-- I: -->
+		<polygon fill="white" points="12,12 68,12 68,36 52,36 52,60 68,60 68,84 12,84 12,60 28,60 28,36 12,36" />
 	</mask>
 
 	<mask id="glyph">
-		<!-- I: -->
-		<polygon fill="white" points="16,48 64,48 64,64 48,64 48,80 64,80 64,96 16,96 16,80 32,80 32,64 16,64" />
-
 		<!-- D: -->
-		<circle cx="104" cy="72" fill="white" r="24" />
-		<circle cx="104" cy="72" fill="black" r="8" />
+		<ellipse cx="104" cy="96" fill="white" rx="24" ry="32" />
+		<ellipse cx="104" cy="96" fill="black" rx="8" ry="16" />
 
-		<polygon fill="black" points="72,48 104,48 104,96 72,96" />
+		<polygon fill="black" points="72,56 104,56 104,136 72,136" />
 
-		<polygon fill="white" points="80,48 104,48 112,56 104,64 96,64 96,80 104,80 112,88 104,96 80,96" />
+		<polygon fill="white" points="80,64 104,64 112,72 104,80 96,80 96,112 104,112 112,120 104,128 80,128 80,80 96,80" />
+
+		<!-- I: -->
+		<polygon fill="white" points="16,16 64,16 64,32 48,32 48,64 64,80 16,80 16,64 32,64 32,32 16,32" />
 	</mask>
 
 	<rect fill="#FFFFFF" height="100%" mask="url(#glyphOutline)" width="100%" x="0" y="0" />
